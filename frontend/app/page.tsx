@@ -1,82 +1,12 @@
 "use client";
 
 import { useState } from "react";
-
-/* ---------- Types ---------- */
-type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs";
-type Property = { id: string; name: string; address: string; type: string };
-type Unit = { id: string; propertyId: string; name: string };
-type Tenant = { id: string; name: string; phone: string; email: string };
-type LeaseStatus = "Active" | "Draft" | "Expired";
-type Lease = {
-  id: string;
-  unitId: string;
-  tenantId: string;
-  start: string;
-  end: string;
-  rent: number;
-  status: LeaseStatus;
-};
-type RepairStatus = "Open" | "In progress" | "Done";
-type Repair = {
-  id: string;
-  unitId: string;
-  title: string;
-  priority: "Low" | "Medium" | "High";
-  status: RepairStatus;
-};
-type Field = {
-  name: string;
-  label: string;
-  type?: "text" | "number" | "date" | "select";
-  options?: { value: string; label: string }[];
-};
-type ModalState =
-  | { kind: "property" }
-  | { kind: "tenant" }
-  | { kind: "lease" }
-  | { kind: "repair" }
-  | { kind: "payment"; leaseId: string }
-  | null;
-
-/* ---------- Fake data (later this comes from the backend) ---------- */
-const properties: Property[] = [
-  { id: "p1", name: "Maple House", address: "Sector F-7, Islamabad", type: "Apartments" },
-  { id: "p2", name: "Brookside Villas", address: "Bahria Town, Rawalpindi", type: "Villas" },
-  { id: "p3", name: "Central Lofts", address: "Blue Area, Islamabad", type: "Mixed use" },
-];
-const units: Unit[] = [
-  { id: "u1", propertyId: "p1", name: "A-101" },
-  { id: "u2", propertyId: "p1", name: "A-102" },
-  { id: "u3", propertyId: "p1", name: "B-201" },
-  { id: "u4", propertyId: "p2", name: "Villa 1" },
-  { id: "u5", propertyId: "p2", name: "Villa 2" },
-  { id: "u6", propertyId: "p3", name: "Loft 1" },
-  { id: "u7", propertyId: "p3", name: "Loft 2" },
-];
-const tenants: Tenant[] = [
-  { id: "t1", name: "Olivia Martin", phone: "0300 1112233", email: "olivia@mail.com" },
-  { id: "t2", name: "James Wilson", phone: "0301 2223344", email: "james@mail.com" },
-  { id: "t3", name: "Emma Davis", phone: "0302 3334455", email: "emma@mail.com" },
-  { id: "t4", name: "Noah Brown", phone: "0303 4445566", email: "noah@mail.com" },
-  { id: "t5", name: "Sophie Taylor", phone: "0304 5556677", email: "sophie@mail.com" },
-];
-const leases: Lease[] = [
-  { id: "l1", unitId: "u1", tenantId: "t1", start: "2026-01-01", end: "2026-12-31", rent: 65000, status: "Active" },
-  { id: "l2", unitId: "u2", tenantId: "t2", start: "2026-01-01", end: "2026-12-31", rent: 55000, status: "Active" },
-  { id: "l3", unitId: "u4", tenantId: "t4", start: "2026-03-01", end: "2027-02-28", rent: 120000, status: "Active" },
-  { id: "l4", unitId: "u5", tenantId: "t5", start: "2026-03-01", end: "2027-02-28", rent: 125000, status: "Active" },
-  { id: "l5", unitId: "u6", tenantId: "t3", start: "2026-11-01", end: "2027-10-31", rent: 80000, status: "Draft" },
-];
-const repairs: Repair[] = [
-  { id: "r1", unitId: "u2", title: "Kitchen tap leaking", priority: "Medium", status: "Open" },
-  { id: "r2", unitId: "u4", title: "AC not cooling", priority: "High", status: "In progress" },
-  { id: "r3", unitId: "u1", title: "Hallway light replaced", priority: "Low", status: "Done" },
-];
+import type { Field, Lease, ModalState, RepairStatus, View } from "../lib/types";
+import { leases, properties, tenants, units, repairs } from "../lib/data";
 
 /* ---------- Small helpers ---------- */
-const money = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
-const nav: { id: View; label: string }[] = [
+export const money = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
+export const nav: { id: View; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "properties", label: "Properties" },
   { id: "tenants", label: "Tenants" },
@@ -84,13 +14,13 @@ const nav: { id: View; label: string }[] = [
   { id: "rent", label: "Rent" },
   { id: "repairs", label: "Repairs" },
 ];
-const tones: Record<string, string> = {
+export const tones: Record<string, string> = {
   green: "bg-emerald-50 text-emerald-700",
   amber: "bg-amber-50 text-amber-700",
   red: "bg-rose-50 text-rose-700",
   gray: "bg-stone-100 text-stone-600",
 };
-const statusTone: Record<string, string> = {
+export const statusTone: Record<string, string> = {
   Active: "green", Paid: "green", Done: "green",
   Draft: "amber", Partial: "amber", Open: "amber", "In progress": "amber",
   Expired: "red", Unpaid: "red", High: "red",
@@ -102,6 +32,8 @@ const btnPrimary =
   "rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700";
 const btnGhost =
   "rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100";
+
+
 
 /* ---------- Reusable pieces ---------- */
 function Badge({ text }: { text: string }) {
