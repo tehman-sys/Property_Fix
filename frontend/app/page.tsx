@@ -1,0 +1,558 @@
+"use client";
+
+import { useState } from "react";
+
+/* ---------- Types ---------- */
+type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs";
+type Property = { id: string; name: string; address: string; type: string };
+type Unit = { id: string; propertyId: string; name: string };
+type Tenant = { id: string; name: string; phone: string; email: string };
+type LeaseStatus = "Active" | "Draft" | "Expired";
+type Lease = {
+  id: string;
+  unitId: string;
+  tenantId: string;
+  start: string;
+  end: string;
+  rent: number;
+  status: LeaseStatus;
+};
+type RepairStatus = "Open" | "In progress" | "Done";
+type Repair = {
+  id: string;
+  unitId: string;
+  title: string;
+  priority: "Low" | "Medium" | "High";
+  status: RepairStatus;
+};
+type Field = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "date" | "select";
+  options?: { value: string; label: string }[];
+};
+type ModalState =
+  | { kind: "property" }
+  | { kind: "tenant" }
+  | { kind: "lease" }
+  | { kind: "repair" }
+  | { kind: "payment"; leaseId: string }
+  | null;
+
+/* ---------- Fake data (later this comes from the backend) ---------- */
+const properties: Property[] = [
+  { id: "p1", name: "Maple House", address: "Sector F-7, Islamabad", type: "Apartments" },
+  { id: "p2", name: "Brookside Villas", address: "Bahria Town, Rawalpindi", type: "Villas" },
+  { id: "p3", name: "Central Lofts", address: "Blue Area, Islamabad", type: "Mixed use" },
+];
+const units: Unit[] = [
+  { id: "u1", propertyId: "p1", name: "A-101" },
+  { id: "u2", propertyId: "p1", name: "A-102" },
+  { id: "u3", propertyId: "p1", name: "B-201" },
+  { id: "u4", propertyId: "p2", name: "Villa 1" },
+  { id: "u5", propertyId: "p2", name: "Villa 2" },
+  { id: "u6", propertyId: "p3", name: "Loft 1" },
+  { id: "u7", propertyId: "p3", name: "Loft 2" },
+];
+const tenants: Tenant[] = [
+  { id: "t1", name: "Olivia Martin", phone: "0300 1112233", email: "olivia@mail.com" },
+  { id: "t2", name: "James Wilson", phone: "0301 2223344", email: "james@mail.com" },
+  { id: "t3", name: "Emma Davis", phone: "0302 3334455", email: "emma@mail.com" },
+  { id: "t4", name: "Noah Brown", phone: "0303 4445566", email: "noah@mail.com" },
+  { id: "t5", name: "Sophie Taylor", phone: "0304 5556677", email: "sophie@mail.com" },
+];
+const leases: Lease[] = [
+  { id: "l1", unitId: "u1", tenantId: "t1", start: "2026-01-01", end: "2026-12-31", rent: 65000, status: "Active" },
+  { id: "l2", unitId: "u2", tenantId: "t2", start: "2026-01-01", end: "2026-12-31", rent: 55000, status: "Active" },
+  { id: "l3", unitId: "u4", tenantId: "t4", start: "2026-03-01", end: "2027-02-28", rent: 120000, status: "Active" },
+  { id: "l4", unitId: "u5", tenantId: "t5", start: "2026-03-01", end: "2027-02-28", rent: 125000, status: "Active" },
+  { id: "l5", unitId: "u6", tenantId: "t3", start: "2026-11-01", end: "2027-10-31", rent: 80000, status: "Draft" },
+];
+const repairs: Repair[] = [
+  { id: "r1", unitId: "u2", title: "Kitchen tap leaking", priority: "Medium", status: "Open" },
+  { id: "r2", unitId: "u4", title: "AC not cooling", priority: "High", status: "In progress" },
+  { id: "r3", unitId: "u1", title: "Hallway light replaced", priority: "Low", status: "Done" },
+];
+
+/* ---------- Small helpers ---------- */
+const money = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
+const nav: { id: View; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "properties", label: "Properties" },
+  { id: "tenants", label: "Tenants" },
+  { id: "leases", label: "Leases" },
+  { id: "rent", label: "Rent" },
+  { id: "repairs", label: "Repairs" },
+];
+const tones: Record<string, string> = {
+  green: "bg-emerald-50 text-emerald-700",
+  amber: "bg-amber-50 text-amber-700",
+  red: "bg-rose-50 text-rose-700",
+  gray: "bg-stone-100 text-stone-600",
+};
+const statusTone: Record<string, string> = {
+  Active: "green", Paid: "green", Done: "green",
+  Draft: "amber", Partial: "amber", Open: "amber", "In progress": "amber",
+  Expired: "red", Unpaid: "red", High: "red",
+  Low: "gray", Medium: "gray",
+};
+const inputCls =
+  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-stone-900";
+const btnPrimary =
+  "rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700";
+const btnGhost =
+  "rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-100";
+
+/* ---------- Reusable pieces ---------- */
+function Badge({ text }: { text: string }) {
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${tones[statusTone[text] ?? "gray"]}`}>
+      {text}
+    </span>
+  );
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white p-5">
+      <p className="text-xs uppercase tracking-wide text-stone-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      {hint && <p className="mt-1 text-xs text-stone-500">{hint}</p>}
+    </div>
+  );
+}
+
+function Header({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-6 flex items-end justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+      <table className="w-full text-left text-sm">
+        <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+          <tr>
+            {head.map((h) => (
+              <th key={h} className="px-4 py-3 font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-100">{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function Modal({
+  title, fields, submitLabel, onClose, onSubmit,
+}: {
+  title: string;
+  fields: Field[];
+  submitLabel: string;
+  onClose: () => void;
+  onSubmit: (values: Record<string, string>) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string, string>);
+        }}
+        className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-6 text-stone-900"
+      >
+        <h2 className="mb-4 text-lg font-semibold">{title}</h2>
+        <div className="space-y-3">
+          {fields.map((f) => (
+            <label key={f.name} className="block text-sm">
+              <span className="mb-1 block text-stone-600">{f.label}</span>
+              {f.type === "select" ? (
+                <select name={f.name} required className={inputCls}>
+                  {f.options?.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input name={f.name} type={f.type ?? "text"} required className={inputCls} />
+              )}
+            </label>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className={btnGhost}>Cancel</button>
+          <button type="submit" className={btnPrimary}>{submitLabel}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ---------- The page ---------- */
+export default function Home() {
+  const [view, setView] = useState<View>("overview");
+  const [modal, setModal] = useState<ModalState>(null);
+  const [props, setProps] = useState(properties);
+  const [tenantList, setTenantList] = useState(tenants);
+  const [leaseList, setLeaseList] = useState(leases);
+  const [repairList, setRepairList] = useState(repairs);
+  const [paid, setPaid] = useState<Record<string, number>>({ l1: 65000, l2: 20000, l3: 0, l4: 125000 });
+
+  const unitLabel = (id: string) => {
+    const u = units.find((x) => x.id === id);
+    const p = props.find((x) => x.id === u?.propertyId);
+    return `${p?.name ?? ""} / ${u?.name ?? ""}`;
+  };
+  const tenantName = (id: string) => tenantList.find((t) => t.id === id)?.name ?? "—";
+  const activeLeases = leaseList.filter((l) => l.status === "Active");
+  const balance = (l: Lease) => l.rent - (paid[l.id] ?? 0);
+  const rentState = (l: Lease) => (balance(l) <= 0 ? "Paid" : (paid[l.id] ?? 0) > 0 ? "Partial" : "Unpaid");
+
+  const expected = activeLeases.reduce((s, l) => s + l.rent, 0);
+  const collected = activeLeases.reduce((s, l) => s + (paid[l.id] ?? 0), 0);
+  const occupiedUnits = new Set(activeLeases.map((l) => l.unitId)).size;
+  const openRepairs = repairList.filter((r) => r.status !== "Done");
+  const pct = expected ? Math.round((collected / expected) * 100) : 0;
+
+  const unitOptions = units.map((u) => ({ value: u.id, label: unitLabel(u.id) }));
+  const tenantOptions = tenantList.map((t) => ({ value: t.id, label: t.name }));
+  const newId = () => crypto.randomUUID();
+  const nextStatus: Record<RepairStatus, RepairStatus> = { Open: "In progress", "In progress": "Done", Done: "Open" };
+
+  return (
+    <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
+      {/* Sidebar (desktop) */}
+      <aside className="hidden w-56 shrink-0 border-r border-stone-200 bg-white p-5 md:block">
+        <p className="mb-8 text-lg font-semibold tracking-tight">PropertyFix</p>
+        <nav className="space-y-1">
+          {nav.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => setView(n.id)}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
+                view === n.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="flex-1">
+        {/* Top nav (mobile) */}
+        <nav className="flex gap-1 overflow-x-auto border-b border-stone-200 bg-white p-2 md:hidden">
+          {nav.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => setView(n.id)}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm ${
+                view === n.id ? "bg-stone-900 text-white" : "text-stone-600"
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </nav>
+
+        <main className="mx-auto max-w-5xl p-6 md:p-10">
+          {/* OVERVIEW */}
+          {view === "overview" && (
+            <>
+              <Header title="Overview" subtitle="Your whole portfolio at a glance." />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Properties" value={String(props.length)} hint={`${units.length} units`} />
+                <Stat label="Occupied" value={`${occupiedUnits}/${units.length}`} hint="units with active lease" />
+                <Stat label="Rent this month" value={money(expected)} hint={`${money(collected)} collected`} />
+                <Stat label="Open repairs" value={String(openRepairs.length)} hint="need action" />
+              </div>
+
+              <div className="mt-6 rounded-xl border border-stone-200 bg-white p-5">
+                <div className="mb-2 flex justify-between text-sm">
+                  <span className="font-medium">Rent collection</span>
+                  <span className="text-stone-500">{pct}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-stone-100">
+                  <div className="h-2 rounded-full bg-stone-900" style={{ width: `${pct}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-stone-500">{money(expected - collected)} still outstanding</p>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-stone-200 bg-white p-5">
+                <p className="mb-3 text-sm font-medium">Needs attention</p>
+                <ul className="space-y-2 text-sm">
+                  {activeLeases.filter((l) => balance(l) > 0).map((l) => (
+                    <li key={l.id} className="flex justify-between">
+                      <span>{tenantName(l.tenantId)} owes {money(balance(l))}</span>
+                      <button className="text-stone-500 underline" onClick={() => setView("rent")}>Open rent</button>
+                    </li>
+                  ))}
+                  {openRepairs.map((r) => (
+                    <li key={r.id} className="flex justify-between">
+                      <span>{r.title} ({unitLabel(r.unitId)})</span>
+                      <Badge text={r.priority} />
+                    </li>
+                  ))}
+                  {leaseList.filter((l) => l.status === "Draft").map((l) => (
+                    <li key={l.id} className="flex justify-between">
+                      <span>Lease for {tenantName(l.tenantId)} is still a draft</span>
+                      <button className="text-stone-500 underline" onClick={() => setView("leases")}>Open leases</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+
+          {/* PROPERTIES */}
+          {view === "properties" && (
+            <>
+              <Header
+                title="Properties"
+                subtitle="Buildings and the units inside them."
+                action={<button className={btnPrimary} onClick={() => setModal({ kind: "property" })}>Add property</button>}
+              />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {props.map((p) => {
+                  const pu = units.filter((u) => u.propertyId === p.id);
+                  const occ = pu.filter((u) => activeLeases.some((l) => l.unitId === u.id)).length;
+                  return (
+                    <div key={p.id} className="rounded-xl border border-stone-200 bg-white p-5">
+                      <p className="text-xs uppercase tracking-wide text-stone-500">{p.type}</p>
+                      <h3 className="mt-1 text-lg font-semibold">{p.name}</h3>
+                      <p className="text-sm text-stone-500">{p.address}</p>
+                      <div className="mt-4 flex justify-between text-sm">
+                        <span>{pu.length} units</span>
+                        <span className="text-stone-500">{occ} occupied</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* TENANTS */}
+          {view === "tenants" && (
+            <>
+              <Header
+                title="Tenants"
+                subtitle="The people renting your units."
+                action={<button className={btnPrimary} onClick={() => setModal({ kind: "tenant" })}>Add tenant</button>}
+              />
+              <Table head={["Name", "Phone", "Email", "Current unit"]}>
+                {tenantList.map((t) => {
+                  const l = activeLeases.find((x) => x.tenantId === t.id);
+                  return (
+                    <tr key={t.id}>
+                      <td className="px-4 py-3 font-medium">{t.name}</td>
+                      <td className="px-4 py-3">{t.phone}</td>
+                      <td className="px-4 py-3 text-stone-500">{t.email}</td>
+                      <td className="px-4 py-3">{l ? unitLabel(l.unitId) : <span className="text-stone-400">None</span>}</td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            </>
+          )}
+
+          {/* LEASES */}
+          {view === "leases" && (
+            <>
+              <Header
+                title="Leases"
+                subtitle="A lease links one tenant to one unit."
+                action={<button className={btnPrimary} onClick={() => setModal({ kind: "lease" })}>Create lease</button>}
+              />
+              <Table head={["Tenant", "Unit", "Rent / month", "Period", "Status", ""]}>
+                {leaseList.map((l) => (
+                  <tr key={l.id}>
+                    <td className="px-4 py-3 font-medium">{tenantName(l.tenantId)}</td>
+                    <td className="px-4 py-3">{unitLabel(l.unitId)}</td>
+                    <td className="px-4 py-3">{money(l.rent)}</td>
+                    <td className="px-4 py-3 text-stone-500">{l.start} to {l.end}</td>
+                    <td className="px-4 py-3"><Badge text={l.status} /></td>
+                    <td className="px-4 py-3 text-right">
+                      {l.status === "Draft" && (
+                        <button
+                          className={btnGhost}
+                          onClick={() => setLeaseList((all) => all.map((x) => (x.id === l.id ? { ...x, status: "Active" } : x)))}
+                        >
+                          Mark signed
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </>
+          )}
+
+          {/* RENT */}
+          {view === "rent" && (
+            <>
+              <Header title="Monthly rent" subtitle="Charges come from signed leases. Partial payments are allowed." />
+              <div className="mb-4 grid gap-4 sm:grid-cols-3">
+                <Stat label="Expected" value={money(expected)} />
+                <Stat label="Collected" value={money(collected)} />
+                <Stat label="Outstanding" value={money(expected - collected)} />
+              </div>
+              <Table head={["Tenant", "Unit", "Rent", "Paid", "Balance", "Status", ""]}>
+                {activeLeases.map((l) => (
+                  <tr key={l.id}>
+                    <td className="px-4 py-3 font-medium">{tenantName(l.tenantId)}</td>
+                    <td className="px-4 py-3">{unitLabel(l.unitId)}</td>
+                    <td className="px-4 py-3">{money(l.rent)}</td>
+                    <td className="px-4 py-3">{money(paid[l.id] ?? 0)}</td>
+                    <td className="px-4 py-3">{money(balance(l))}</td>
+                    <td className="px-4 py-3"><Badge text={rentState(l)} /></td>
+                    <td className="px-4 py-3 text-right">
+                      {balance(l) > 0 && (
+                        <button className={btnGhost} onClick={() => setModal({ kind: "payment", leaseId: l.id })}>
+                          Record payment
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </>
+          )}
+
+          {/* REPAIRS */}
+          {view === "repairs" && (
+            <>
+              <Header
+                title="Repairs"
+                subtitle="From first report to finished."
+                action={<button className={btnPrimary} onClick={() => setModal({ kind: "repair" })}>Report repair</button>}
+              />
+              <div className="space-y-3">
+                {repairList.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-4 rounded-xl border border-stone-200 bg-white p-4">
+                    <div>
+                      <p className="font-medium">{r.title}</p>
+                      <p className="text-sm text-stone-500">{unitLabel(r.unitId)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge text={r.priority} />
+                      <Badge text={r.status} />
+                      <button
+                        className={btnGhost}
+                        onClick={() =>
+                          setRepairList((all) => all.map((x) => (x.id === r.id ? { ...x, status: nextStatus[x.status] } : x)))
+                        }
+                      >
+                        Next status
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {/* MODALS */}
+      {modal?.kind === "property" && (
+        <Modal
+          title="Add property"
+          submitLabel="Save"
+          fields={[
+            { name: "name", label: "Name" },
+            { name: "address", label: "Address" },
+            { name: "type", label: "Type (e.g. Apartments)" },
+          ]}
+          onClose={() => setModal(null)}
+          onSubmit={(v) => {
+            setProps((all) => [...all, { id: newId(), name: v.name, address: v.address, type: v.type }]);
+            setModal(null);
+          }}
+        />
+      )}
+      {modal?.kind === "tenant" && (
+        <Modal
+          title="Add tenant"
+          submitLabel="Save"
+          fields={[
+            { name: "name", label: "Full name" },
+            { name: "phone", label: "Phone" },
+            { name: "email", label: "Email", type: "text" },
+          ]}
+          onClose={() => setModal(null)}
+          onSubmit={(v) => {
+            setTenantList((all) => [...all, { id: newId(), name: v.name, phone: v.phone, email: v.email }]);
+            setModal(null);
+          }}
+        />
+      )}
+      {modal?.kind === "lease" && (
+        <Modal
+          title="Create lease"
+          submitLabel="Create draft"
+          fields={[
+            { name: "unitId", label: "Unit", type: "select", options: unitOptions },
+            { name: "tenantId", label: "Tenant", type: "select", options: tenantOptions },
+            { name: "start", label: "Start date", type: "date" },
+            { name: "end", label: "End date", type: "date" },
+            { name: "rent", label: "Monthly rent", type: "number" },
+          ]}
+          onClose={() => setModal(null)}
+          onSubmit={(v) => {
+            setLeaseList((all) => [
+              ...all,
+              { id: newId(), unitId: v.unitId, tenantId: v.tenantId, start: v.start, end: v.end, rent: Number(v.rent), status: "Draft" },
+            ]);
+            setModal(null);
+          }}
+        />
+      )}
+      {modal?.kind === "repair" && (
+        <Modal
+          title="Report repair"
+          submitLabel="Save"
+          fields={[
+            { name: "unitId", label: "Unit", type: "select", options: unitOptions },
+            { name: "title", label: "What is broken?" },
+            {
+              name: "priority",
+              label: "Priority",
+              type: "select",
+              options: ["Low", "Medium", "High"].map((p) => ({ value: p, label: p })),
+            },
+          ]}
+          onClose={() => setModal(null)}
+          onSubmit={(v) => {
+            setRepairList((all) => [
+              ...all,
+              { id: newId(), unitId: v.unitId, title: v.title, priority: v.priority as Repair["priority"], status: "Open" },
+            ]);
+            setModal(null);
+          }}
+        />
+      )}
+      {modal?.kind === "payment" && (
+        <Modal
+          title="Record payment"
+          submitLabel="Save payment"
+          fields={[{ name: "amount", label: "Amount received", type: "number" }]}
+          onClose={() => setModal(null)}
+          onSubmit={(v) => {
+            const id = modal.leaseId;
+            setPaid((p) => ({ ...p, [id]: (p[id] ?? 0) + Number(v.amount) }));
+            setModal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
