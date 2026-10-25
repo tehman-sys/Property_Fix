@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 const mongoose = require("mongoose");
 const Property = require("./models/Property");
 const Tenant = require("./models/Tenant");  
@@ -9,16 +9,32 @@ const Tenant = require("./models/Tenant");
 app.use(cors());
 app.use(express.json());
 
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log("Mongo connected");
-    app.listen(4000, () => console.log("API running on http://localhost:4000"));
-  })
-  .catch((err) => console.error("Mongo connection failed:", err.message));
+let connecting = null;
 
-app.get("/health", (req, res) => {
-    res.json({ status: "ok" });
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) return;
+  if (!connecting) {
+    connecting = mongoose.connect(process.env.MONGODB_URI).then(() => {
+      console.log("Mongo connected");
+    });
+  }
+  try {
+    await connecting;
+  } catch (err) {
+    connecting = null;
+    throw err;
+  }
+}
+
+// connect to the database before every request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("Mongo connection failed:", err.message);
+    res.status(500).json({ error: "Database connection failed" });
+  }
 });
 
 app.get("/api/properties", async (req, res) => {
@@ -122,3 +138,10 @@ app.delete("/api/tenants/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
   }
 });
+
+// run a normal server locally; on Vercel the app is exported instead
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+}
+
+module.exports = app;
