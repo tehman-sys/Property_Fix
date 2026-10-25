@@ -1,19 +1,18 @@
 import type { Lease, Property, Repair, Tenant, Unit } from "./types";
-
 /* ---------- Fake data (later this comes from the backend) ---------- */
 export const properties: Property[] = [
-  { id: "p1", name: "Maple House", address: "Sector F-7, Islamabad", type: "Apartments" },
-  { id: "p2", name: "Brookside Villas", address: "Bahria Town, Rawalpindi", type: "Villas" },
-  { id: "p3", name: "Central Lofts", address: "Blue Area, Islamabad", type: "Mixed use" },
+  { id: "6ade3d311071b3a74943edca", name: "Maple House", address: "Sector F-7, Islamabad", type: "Apartments" },
+  { id: "6ade3d9d1071b3a74943edcb", name: "Brookside Villas", address: "Bahria Town, Rawalpindi", type: "Villas" },
+  { id: "6ade3dc11071b3a74943edcc", name: "Central Lofts", address: "Blue Area, Islamabad", type: "Mixed use" },
 ];
 export const units: Unit[] = [
-  { id: "u1", propertyId: "p1", name: "A-101" },
-  { id: "u2", propertyId: "p1", name: "A-102" },
-  { id: "u3", propertyId: "p1", name: "B-201" },
-  { id: "u4", propertyId: "p2", name: "Villa 1" },
-  { id: "u5", propertyId: "p2", name: "Villa 2" },
-  { id: "u6", propertyId: "p3", name: "Loft 1" },
-  { id: "u7", propertyId: "p3", name: "Loft 2" },
+  { id: "u1", propertyId: "6ade3d311071b3a74943edca", name: "A-101" },
+  { id: "u2", propertyId: "6ade3d311071b3a74943edca", name: "A-102" },
+  { id: "u3", propertyId: "6ade3d311071b3a74943edca", name: "B-201" },
+  { id: "u4", propertyId: "6ade3d9d1071b3a74943edcb", name: "Villa 1" },
+  { id: "u5", propertyId: "6ade3d9d1071b3a74943edcb", name: "Villa 2" },
+  { id: "u6", propertyId: "6ade3dc11071b3a74943edcc", name: "Loft 1" },
+  { id: "u7", propertyId: "6ade3dc11071b3a74943edcc", name: "Loft 2" },
 ];
 export const tenants: Tenant[] = [
   { id: "t1", name: "Olivia Martin", phone: "0300 1112233", email: "olivia@mail.com" },

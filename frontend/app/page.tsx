@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { leases, properties, repairs, tenants, units } from "../lib/data";
+import { leases, repairs, tenants, units } from "../lib/data";
 import { nav } from "../lib/ui";
-import type { Lease, ModalState, Repair, RepairStatus, View } from "../lib/types";
+import type { Lease, ModalState, Property, Repair, RepairStatus, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
 import { PropertiesView } from "../views/PropertiesView";
@@ -18,11 +18,22 @@ const nextStatus: Record<RepairStatus, RepairStatus> = {
   Done: "Open",
 };
 
+const API = process.env.NEXT_PUBLIC_API_URL;
+
 export default function Home() {
   /* ---------- State: the data that can change ---------- */
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<ModalState>(null);
-  const [props, setProps] = useState(properties);
+
+  const [props, setProps] = useState<Property[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/properties`)
+      .then((r) => r.json())
+      .then((data) => setProps(data.properties))
+      .catch(() => alert("Could not reach the server"));
+  }, []);
+
   const [tenantList, setTenantList] = useState(tenants);
   const [leaseList, setLeaseList] = useState(leases);
   const [repairList, setRepairList] = useState(repairs);
@@ -60,9 +71,8 @@ export default function Home() {
             <button
               key={n.id}
               onClick={() => setView(n.id)}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
-                view === n.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
-              }`}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${view === n.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
+                }`}
             >
               {n.label}
             </button>
@@ -77,9 +87,8 @@ export default function Home() {
             <button
               key={n.id}
               onClick={() => setView(n.id)}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm ${
-                view === n.id ? "bg-stone-900 text-white" : "text-stone-600"
-              }`}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm ${view === n.id ? "bg-stone-900 text-white" : "text-stone-600"
+                }`}
             >
               {n.label}
             </button>
@@ -167,8 +176,18 @@ export default function Home() {
             { name: "type", label: "Type (e.g. Apartments)" },
           ]}
           onClose={closeModal}
-          onSubmit={(v) => {
-            setProps((all) => [...all, { id: newId(), name: v.name, address: v.address, type: v.type }]);
+                    onSubmit={async (v) => {
+            const res = await fetch(`${API}/api/properties`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: v.name, address: v.address, type: v.type }),
+            });
+            if (!res.ok) {
+              alert("Could not save the property");
+              return;
+            }
+            const created = await res.json();
+            setProps((all) => [...all, created]);
             closeModal();
           }}
         />
