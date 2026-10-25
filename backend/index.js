@@ -5,6 +5,7 @@ const PORT = process.env.PORT || 4000;
 const mongoose = require("mongoose");
 const Property = require("./models/Property");
 const Tenant = require("./models/Tenant");  
+const Lease = require("./models/Lease");
 
 app.use(cors());
 app.use(express.json());
@@ -137,6 +138,62 @@ app.delete("/api/tenants/:id", async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: "Invalid id" });
   }
+});
+
+app.get("/api/leases", async (req, res) => {
+  try {
+    const leases = await Lease.find().sort({ _id: 1 });
+    res.json({ leases });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/leases", async (req, res) => {
+  try {
+    const { unitId, tenantId, start, end, rent } = req.body;
+    if (start && end && end <= start) {
+      return res.status(400).json({ error: "End date must be after start date" });
+    }
+    const lease = await Lease.create({ unitId, tenantId, start, end, rent, status: "Draft" });
+    res.status(201).json(lease);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Draft -> Active (a unit can only have one active lease)
+app.post("/api/leases/:id/sign", async (req, res) => {
+  try {
+    const lease = await Lease.findById(req.params.id);
+    if (!lease) return res.status(404).json({ error: "Lease not found" });
+    const clash = await Lease.findOne({
+      unitId: lease.unitId,
+      status: "Active",
+      _id: { $ne: lease._id },
+    });
+    if (clash) return res.status(409).json({ error: "This unit already has an active lease" });
+    lease.status = "Active";
+    await lease.save();
+    res.json(lease);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/leases/:id", async (req, res) => {
+  try {
+    const lease = await Lease.findByIdAndDelete(req.params.id);
+    if (!lease) return res.status(404).json({ error: "Lease not found" });
+    res.json({ message: "Lease deleted" });
+  } catch (err) {
+    res.status(400).json({ error: "Invalid id" });
+  }
+});
+
+// handle all other routes with a 404
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
 });
 
 // run a normal server locally; on Vercel the app is exported instead

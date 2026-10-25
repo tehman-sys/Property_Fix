@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { leases, repairs  , units } from "../lib/data";
+import { repairs, units } from "../lib/data";
 import { nav } from "../lib/ui";
 import type { Lease, ModalState, Property, Repair, RepairStatus, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
@@ -34,7 +34,7 @@ export default function Home() {
       .catch(() => alert("Could not reach the server"));
   }, []);
 
-    const [tenantList, setTenantList] = useState<Tenant[]>([]);
+  const [tenantList, setTenantList] = useState<Tenant[]>([]);
 
   useEffect(() => {
     fetch(`${API}/api/tenants`)
@@ -43,10 +43,25 @@ export default function Home() {
       .catch(() => alert("Could not reach the server"));
   }, []);
 
-  const [leaseList, setLeaseList] = useState(leases);
+  const [leaseList, setLeaseList] = useState<Lease[]>([]);
   const [repairList, setRepairList] = useState(repairs);
-  const [paid, setPaid] = useState<Record<string, number>>({ l1: 65000, l2: 20000, l3: 0, l4: 125000 });
+  const [paid, setPaid] = useState<Record<string, number>>({});
 
+  useEffect(() => {
+    // demo only: starting payments for the sample leases (payments are not saved yet)
+    const startPaid: Record<string, number> = { u1: 65000, u2: 20000, u4: 0, u5: 125000 };
+    fetch(`${API}/api/leases`)
+      .then((r) => r.json())
+      .then((data) => {
+        setLeaseList(data.leases);
+        const p: Record<string, number> = {};
+        for (const l of data.leases as Lease[]) {
+          if (startPaid[l.unitId] !== undefined) p[l.id] = startPaid[l.unitId];
+        }
+        setPaid(p);
+      })
+      .catch(() => alert("Could not reach the server"));
+  }, []);
   /* ---------- Helpers and totals computed from the state ---------- */
   const unitLabel = (id: string) => {
     const u = units.find((x) => x.id === id);
@@ -68,6 +83,18 @@ export default function Home() {
   const tenantOptions = tenantList.map((t) => ({ value: t.id, label: t.name }));
   const newId = () => crypto.randomUUID();
   const closeModal = () => setModal(null);
+
+    const signLease = async (id: string) => {
+    const res = await fetch(`${API}/api/leases/${id}/sign`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ?? "Could not sign the lease");
+      return;
+    }
+    setLeaseList((all) => all.map((x) => (x.id === id ? data : x)));
+  };
+
+    
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -142,9 +169,7 @@ export default function Home() {
               tenantName={tenantName}
               unitLabel={unitLabel}
               onCreate={() => setModal({ kind: "lease" })}
-              onSign={(id) =>
-                setLeaseList((all) => all.map((x) => (x.id === id ? { ...x, status: "Active" } : x)))
-              }
+              onSign={signLease}
             />
           )}
           {view === "rent" && (
@@ -184,7 +209,7 @@ export default function Home() {
             { name: "type", label: "Type (e.g. Apartments)" },
           ]}
           onClose={closeModal}
-                    onSubmit={async (v) => {
+          onSubmit={async (v) => {
             const res = await fetch(`${API}/api/properties`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -210,7 +235,7 @@ export default function Home() {
             { name: "email", label: "Email", type: "text" },
           ]}
           onClose={closeModal}
-                    onSubmit={async (v) => {
+          onSubmit={async (v) => {
             const res = await fetch(`${API}/api/tenants`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -238,11 +263,24 @@ export default function Home() {
             { name: "rent", label: "Monthly rent", type: "number" },
           ]}
           onClose={closeModal}
-          onSubmit={(v) => {
-            setLeaseList((all) => [
-              ...all,
-              { id: newId(), unitId: v.unitId, tenantId: v.tenantId, start: v.start, end: v.end, rent: Number(v.rent), status: "Draft" },
-            ]);
+                    onSubmit={async (v) => {
+            const res = await fetch(`${API}/api/leases`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                unitId: v.unitId,
+                tenantId: v.tenantId,
+                start: v.start,
+                end: v.end,
+                rent: Number(v.rent),
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not create the lease");
+              return;
+            }
+            setLeaseList((all) => [...all, data]);
             closeModal();
           }}
         />
