@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { leases, repairs, tenants, units } from "../lib/data";
+import { leases, repairs  , units } from "../lib/data";
 import { nav } from "../lib/ui";
-import type { Lease, ModalState, Property, Repair, RepairStatus, View } from "../lib/types";
+import type { Lease, ModalState, Property, Repair, RepairStatus, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
 import { PropertiesView } from "../views/PropertiesView";
@@ -34,7 +34,15 @@ export default function Home() {
       .catch(() => alert("Could not reach the server"));
   }, []);
 
-  const [tenantList, setTenantList] = useState(tenants);
+    const [tenantList, setTenantList] = useState<Tenant[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/tenants`)
+      .then((r) => r.json())
+      .then((data) => setTenantList(data.tenants))
+      .catch(() => alert("Could not reach the server"));
+  }, []);
+
   const [leaseList, setLeaseList] = useState(leases);
   const [repairList, setRepairList] = useState(repairs);
   const [paid, setPaid] = useState<Record<string, number>>({ l1: 65000, l2: 20000, l3: 0, l4: 125000 });
@@ -202,8 +210,18 @@ export default function Home() {
             { name: "email", label: "Email", type: "text" },
           ]}
           onClose={closeModal}
-          onSubmit={(v) => {
-            setTenantList((all) => [...all, { id: newId(), name: v.name, phone: v.phone, email: v.email }]);
+                    onSubmit={async (v) => {
+            const res = await fetch(`${API}/api/tenants`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: v.name, phone: v.phone, email: v.email }),
+            });
+            if (!res.ok) {
+              alert("Could not save the tenant");
+              return;
+            }
+            const created = await res.json();
+            setTenantList((all) => [...all, created]);
             closeModal();
           }}
         />
