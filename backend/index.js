@@ -7,6 +7,7 @@ const Property = require("./models/Property");
 const Tenant = require("./models/Tenant");  
 const Lease = require("./models/Lease");
 const Repair = require("./models/Repair");
+const Payment = require("./models/Payment");
 
 app.use(cors());
 app.use(express.json());
@@ -231,6 +232,56 @@ app.delete("/api/repairs/:id", async (req, res) => {
     const repair = await Repair.findByIdAndDelete(req.params.id);
     if (!repair) return res.status(404).json({ error: "Repair not found" });
     res.json({ message: "Repair deleted" });
+  } catch (err) {
+    res.status(400).json({ error: "Invalid id" });
+  }
+});
+
+const currentMonth = () => new Date().toISOString().slice(0, 7);
+
+app.get("/api/payments", async (req, res) => {
+  try {
+    const month = req.query.month || currentMonth();
+    const payments = await Payment.find({ month }).sort({ _id: 1 });
+    res.json({ payments });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/payments", async (req, res) => {
+  try {
+    const { leaseId, amount } = req.body;
+    const value = Number(amount);
+    if (!(value > 0)) return res.status(400).json({ error: "Amount must be more than 0" });
+
+    const lease = await Lease.findById(leaseId);
+    if (!lease) return res.status(404).json({ error: "Lease not found" });
+    if (lease.status !== "Active") {
+      return res.status(400).json({ error: "Only active leases can receive payments" });
+    }
+
+    const month = currentMonth();
+    const earlier = await Payment.find({ leaseId, month });
+    const paidSoFar = earlier.reduce((sum, p) => sum + p.amount, 0);
+    if (paidSoFar + value > lease.rent) {
+      return res
+        .status(400)
+        .json({ error: `Payment is more than the balance (Rs ${lease.rent - paidSoFar})` });
+    }
+
+    const payment = await Payment.create({ leaseId, amount: value, month });
+    res.status(201).json(payment);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/payments/:id", async (req, res) => {
+  try {
+    const payment = await Payment.findByIdAndDelete(req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    res.json({ message: "Payment deleted" });
   } catch (err) {
     res.status(400).json({ error: "Invalid id" });
   }

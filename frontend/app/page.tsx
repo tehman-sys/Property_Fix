@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
 import { units } from "../lib/data";
 import { nav } from "../lib/ui";
-import type { Lease, ModalState, Property, Repair, RepairStatus, Tenant, View } from "../lib/types";
+import type { Lease, ModalState, Property, Payment, Repair, RepairStatus, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
 import { PropertiesView } from "../views/PropertiesView";
@@ -52,23 +52,23 @@ export default function Home() {
       .then((data) => setRepairList(data.repairs))
       .catch(() => alert("Could not reach the server"));
   }, []);
-  const [paid, setPaid] = useState<Record<string, number>>({});
+
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
-    // demo only: starting payments for the sample leases (payments are not saved yet)
-    const startPaid: Record<string, number> = { u1: 65000, u2: 20000, u4: 0, u5: 125000 };
-    fetch(`${API}/api/leases`)
+    fetch(`${API}/api/payments`)
       .then((r) => r.json())
-      .then((data) => {
-        setLeaseList(data.leases);
-        const p: Record<string, number> = {};
-        for (const l of data.leases as Lease[]) {
-          if (startPaid[l.unitId] !== undefined) p[l.id] = startPaid[l.unitId];
-        }
-        setPaid(p);
-      })
+      .then((data) => setPayments(data.payments))
       .catch(() => alert("Could not reach the server"));
   }, []);
+
+  useEffect(() => {
+    fetch(`${API}/api/leases`)
+      .then((r) => r.json())
+      .then((data) => setLeaseList(data.leases))
+      .catch(() => alert("Could not reach the server"));
+  }, []);
+  
   /* ---------- Helpers and totals computed from the state ---------- */
   const unitLabel = (id: string) => {
     const u = units.find((x) => x.id === id);
@@ -77,6 +77,8 @@ export default function Home() {
   };
   const tenantName = (id: string) => tenantList.find((t) => t.id === id)?.name ?? "—";
   const activeLeases = leaseList.filter((l) => l.status === "Active");
+  const paid: Record<string, number> = {};
+  for (const p of payments) paid[p.leaseId] = (paid[p.leaseId] ?? 0) + p.amount;
   const balance = (l: Lease) => l.rent - (paid[l.id] ?? 0);
   const rentState = (l: Lease) => (balance(l) <= 0 ? "Paid" : (paid[l.id] ?? 0) > 0 ? "Partial" : "Unpaid");
 
@@ -211,7 +213,7 @@ export default function Home() {
               repairs={repairList}
               unitLabel={unitLabel}
               onReport={() => setModal({ kind: "repair" })}
-               onNext={advanceRepair}
+              onNext={advanceRepair}
             />
           )}
         </main>
@@ -319,7 +321,7 @@ export default function Home() {
             },
           ]}
           onClose={closeModal}
-                    onSubmit={async (v) => {
+          onSubmit={async (v) => {
             const res = await fetch(`${API}/api/repairs`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -341,9 +343,19 @@ export default function Home() {
           submitLabel="Save payment"
           fields={[{ name: "amount", label: "Amount received", type: "number" }]}
           onClose={closeModal}
-          onSubmit={(v) => {
-            const id = modal.leaseId;
-            setPaid((p) => ({ ...p, [id]: (p[id] ?? 0) + Number(v.amount) }));
+                   onSubmit={async (v) => {
+            const leaseId = modal.leaseId;
+            const res = await fetch(`${API}/api/payments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ leaseId, amount: Number(v.amount) }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not save the payment");
+              return;
+            }
+            setPayments((all) => [...all, data]);
             closeModal();
           }}
         />
