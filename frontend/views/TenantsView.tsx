@@ -7,9 +7,10 @@ type Props = {
   activeLeases: Lease[];
   unitLabel: (id: string) => string;
   onAdd: () => void;
+  onDelete: (id: string) => void;
 };
 
-export function TenantsView({ tenants, activeLeases, unitLabel, onAdd }: Props) {
+export function TenantsView({ tenants, activeLeases, unitLabel, onAdd, onDelete }: Props) {
   return (
     <>
       <Header
@@ -17,7 +18,7 @@ export function TenantsView({ tenants, activeLeases, unitLabel, onAdd }: Props) 
         subtitle="The people renting your units."
         action={<button className={btnPrimary} onClick={onAdd}>Add tenant</button>}
       />
-      <Table head={["Name", "Phone", "Email", "Current unit"]}>
+      <Table head={["Name", "Phone", "Email", "Current unit", "Actions"]}>
         {tenants.map((t) => {
           const l = activeLeases.find((x) => x.tenantId === t.id);
           return (
@@ -26,6 +27,14 @@ export function TenantsView({ tenants, activeLeases, unitLabel, onAdd }: Props) 
               <td className="px-4 py-3">{t.phone}</td>
               <td className="px-4 py-3 text-stone-500">{t.email}</td>
               <td className="px-4 py-3">{l ? unitLabel(l.unitId) : <span className="text-stone-400">None</span>}</td>
+              <td className="px-4 py-3">
+                <button
+                  className="text-sm font-medium text-red-600 hover:underline"
+                  onClick={() => onDelete(t.id)}
+                >
+                  Delete
+                </button>
+              </td>
             </tr>
           );
         })}

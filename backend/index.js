@@ -134,6 +134,10 @@ app.patch("/api/tenants/:id", async (req, res) => {
 
 app.delete("/api/tenants/:id", async (req, res) => {
   try {
+    const active = await Lease.findOne({ tenantId: req.params.id, status: "Active" });
+    if (active) {
+      return res.status(409).json({ error: "This tenant has an active lease. Delete the lease first." });
+    }
     const tenant = await Tenant.findByIdAndDelete(req.params.id);
     if (!tenant) return res.status(404).json({ error: "Tenant not found" });
     res.json({ message: "Tenant deleted" });
@@ -183,10 +187,28 @@ app.post("/api/leases/:id/sign", async (req, res) => {
   }
 });
 
+app.patch("/api/leases/:id", async (req, res) => {
+  try {
+    const lease = await Lease.findById(req.params.id);
+    if (!lease) return res.status(404).json({ error: "Lease not found" });
+    for (const k of ["start", "end", "rent"]) {
+      if (req.body[k] !== undefined) lease[k] = req.body[k];
+    }
+    if (lease.end <= lease.start) {
+      return res.status(400).json({ error: "End date must be after start date" });
+    }
+    await lease.save();
+    res.json(lease);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.delete("/api/leases/:id", async (req, res) => {
   try {
     const lease = await Lease.findByIdAndDelete(req.params.id);
     if (!lease) return res.status(404).json({ error: "Lease not found" });
+    await Payment.deleteMany({ leaseId: String(lease._id) });
     res.json({ message: "Lease deleted" });
   } catch (err) {
     res.status(400).json({ error: "Invalid id" });

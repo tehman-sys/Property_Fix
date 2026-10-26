@@ -68,7 +68,7 @@ export default function Home() {
       .then((data) => setLeaseList(data.leases))
       .catch(() => alert("Could not reach the server"));
   }, []);
-  
+
   /* ---------- Helpers and totals computed from the state ---------- */
   const unitLabel = (id: string) => {
     const u = units.find((x) => x.id === id);
@@ -117,6 +117,37 @@ export default function Home() {
     }
     setRepairList((all) => all.map((x) => (x.id === id ? data : x)));
   };
+
+  async function deleteTenant(id: string) {
+  if (!confirm("Delete this tenant?")) return;
+  try {
+    const res = await fetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
+    }
+    setTenantList((all) => all.filter((t) => t.id !== id));
+  } catch {
+    alert("Could not reach the server");
+  }
+}
+
+async function deleteLease(id: string) {
+  if (!confirm("Delete this lease and its payments?")) return;
+  try {
+    const res = await fetch(`${API}/api/leases/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
+    }
+    setLeaseList((all) => all.filter((l) => l.id !== id));
+    setPayments((all) => all.filter((p) => p.leaseId !== id));
+  } catch {
+    alert("Could not reach the server");
+  }
+}
 
 
   return (
@@ -184,6 +215,7 @@ export default function Home() {
               activeLeases={activeLeases}
               unitLabel={unitLabel}
               onAdd={() => setModal({ kind: "tenant" })}
+              onDelete={deleteTenant}
             />
           )}
           {view === "leases" && (
@@ -193,6 +225,7 @@ export default function Home() {
               unitLabel={unitLabel}
               onCreate={() => setModal({ kind: "lease" })}
               onSign={signLease}
+              onDelete={deleteLease}
             />
           )}
           {view === "rent" && (

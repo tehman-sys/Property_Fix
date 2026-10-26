@@ -8,9 +8,10 @@ type Props = {
   unitLabel: (id: string) => string;
   onCreate: () => void;
   onSign: (leaseId: string) => void;
+  onDelete: (leaseId: string) => void;
 };
 
-export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign }: Props) {
+export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign, onDelete }: Props) {
   return (
     <>
       <Header
@@ -27,9 +28,17 @@ export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign }: 
             <td className="px-4 py-3 text-stone-500">{l.start} to {l.end}</td>
             <td className="px-4 py-3"><Badge text={l.status} /></td>
             <td className="px-4 py-3 text-right">
-              {l.status === "Draft" && (
-                <button className={btnGhost} onClick={() => onSign(l.id)}>Mark signed</button>
-              )}
+              <div className="flex justify-end gap-3">
+                {l.status === "Draft" && (
+                  <button className={btnGhost} onClick={() => onSign(l.id)}>Mark signed</button>
+                )}
+                <button
+                  className="text-sm font-medium text-red-600 hover:underline"
+                  onClick={() => onDelete(l.id)}
+                >
+                  Delete
+                </button>
+              </div>
             </td>
           </tr>
         ))}
