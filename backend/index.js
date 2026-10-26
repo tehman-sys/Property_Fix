@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const Property = require("./models/Property");
 const Tenant = require("./models/Tenant");  
 const Lease = require("./models/Lease");
+const Repair = require("./models/Repair");
 
 app.use(cors());
 app.use(express.json());
@@ -191,10 +192,56 @@ app.delete("/api/leases/:id", async (req, res) => {
   }
 });
 
+app.get("/api/repairs", async (req, res) => {
+  try {
+    const repairs = await Repair.find().sort({ _id: 1 });
+    res.json({ repairs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/repairs", async (req, res) => {
+  try {
+    const { unitId, title, priority } = req.body;
+    const repair = await Repair.create({ unitId, title, priority, status: "Open" });
+    res.status(201).json(repair);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// change the status of a repair
+app.patch("/api/repairs/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["Open", "In progress", "Done"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    const repair = await Repair.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!repair) return res.status(404).json({ error: "Repair not found" });
+    res.json(repair);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/repairs/:id", async (req, res) => {
+  try {
+    const repair = await Repair.findByIdAndDelete(req.params.id);
+    if (!repair) return res.status(404).json({ error: "Repair not found" });
+    res.json({ message: "Repair deleted" });
+  } catch (err) {
+    res.status(400).json({ error: "Invalid id" });
+  }
+});
+
 // handle all other routes with a 404
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
+
+
 
 // run a normal server locally; on Vercel the app is exported instead
 if (!process.env.VERCEL) {

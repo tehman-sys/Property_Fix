@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { repairs, units } from "../lib/data";
+import { units } from "../lib/data";
 import { nav } from "../lib/ui";
 import type { Lease, ModalState, Property, Repair, RepairStatus, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
@@ -44,7 +44,14 @@ export default function Home() {
   }, []);
 
   const [leaseList, setLeaseList] = useState<Lease[]>([]);
-  const [repairList, setRepairList] = useState(repairs);
+  const [repairList, setRepairList] = useState<Repair[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/repairs`)
+      .then((r) => r.json())
+      .then((data) => setRepairList(data.repairs))
+      .catch(() => alert("Could not reach the server"));
+  }, []);
   const [paid, setPaid] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -81,10 +88,9 @@ export default function Home() {
 
   const unitOptions = units.map((u) => ({ value: u.id, label: unitLabel(u.id) }));
   const tenantOptions = tenantList.map((t) => ({ value: t.id, label: t.name }));
-  const newId = () => crypto.randomUUID();
   const closeModal = () => setModal(null);
 
-    const signLease = async (id: string) => {
+  const signLease = async (id: string) => {
     const res = await fetch(`${API}/api/leases/${id}/sign`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
@@ -94,7 +100,22 @@ export default function Home() {
     setLeaseList((all) => all.map((x) => (x.id === id ? data : x)));
   };
 
-    
+  const advanceRepair = async (id: string) => {
+    const repair = repairList.find((x) => x.id === id);
+    if (!repair) return;
+    const res = await fetch(`${API}/api/repairs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nextStatus[repair.status] }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ?? "Could not update the repair");
+      return;
+    }
+    setRepairList((all) => all.map((x) => (x.id === id ? data : x)));
+  };
+
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -190,9 +211,7 @@ export default function Home() {
               repairs={repairList}
               unitLabel={unitLabel}
               onReport={() => setModal({ kind: "repair" })}
-              onNext={(id) =>
-                setRepairList((all) => all.map((x) => (x.id === id ? { ...x, status: nextStatus[x.status] } : x)))
-              }
+               onNext={advanceRepair}
             />
           )}
         </main>
@@ -263,7 +282,7 @@ export default function Home() {
             { name: "rent", label: "Monthly rent", type: "number" },
           ]}
           onClose={closeModal}
-                    onSubmit={async (v) => {
+          onSubmit={async (v) => {
             const res = await fetch(`${API}/api/leases`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -300,11 +319,18 @@ export default function Home() {
             },
           ]}
           onClose={closeModal}
-          onSubmit={(v) => {
-            setRepairList((all) => [
-              ...all,
-              { id: newId(), unitId: v.unitId, title: v.title, priority: v.priority as Repair["priority"], status: "Open" },
-            ]);
+                    onSubmit={async (v) => {
+            const res = await fetch(`${API}/api/repairs`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ unitId: v.unitId, title: v.title, priority: v.priority }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not report the repair");
+              return;
+            }
+            setRepairList((all) => [...all, data]);
             closeModal();
           }}
         />
