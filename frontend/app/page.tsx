@@ -149,6 +149,20 @@ async function deleteLease(id: string) {
   }
 }
 
+async function deleteProperty(id: string) {
+  if (!confirm("Delete this property?")) return;
+  try {
+    const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
+    }
+    setProps((all) => all.filter((p) => p.id !== id));
+  } catch {
+    alert("Could not reach the server");
+  }
+}
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -207,6 +221,7 @@ async function deleteLease(id: string) {
               properties={props}
               activeLeases={activeLeases}
               onAdd={() => setModal({ kind: "property" })}
+              onDelete={deleteProperty}
             />
           )}
           {view === "tenants" && (

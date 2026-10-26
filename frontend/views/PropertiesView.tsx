@@ -7,9 +7,10 @@ type Props = {
   properties: Property[];
   activeLeases: Lease[];
   onAdd: () => void;
+  onDelete: (id: string) => void;
 };
 
-export function PropertiesView({ properties, activeLeases, onAdd }: Props) {
+export function PropertiesView({ properties, activeLeases, onAdd, onDelete }: Props) {
   return (
     <>
       <Header
@@ -29,6 +30,14 @@ export function PropertiesView({ properties, activeLeases, onAdd }: Props) {
               <div className="mt-4 flex justify-between text-sm">
                 <span>{pu.length} units</span>
                 <span className="text-stone-500">{occ} occupied</span>
+              </div>
+              <div className="mt-4 border-t border-stone-100 pt-3 text-right">
+                <button
+                  className="text-sm font-medium text-red-600 hover:underline"
+                  onClick={() => onDelete(p.id)}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           );
