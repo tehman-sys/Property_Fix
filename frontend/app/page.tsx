@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { units } from "../lib/data";
 import { nav } from "../lib/ui";
-import type { Lease, ModalState, Property, Payment, Repair, RepairStatus, Tenant, View } from "../lib/types";
+import type { Lease, ModalState, Property, Payment, Repair, RepairStatus, Unit, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
 import { PropertiesView } from "../views/PropertiesView";
@@ -17,6 +16,7 @@ const nextStatus: Record<RepairStatus, RepairStatus> = {
   "In progress": "Done",
   Done: "Open",
 };
+
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -40,6 +40,15 @@ export default function Home() {
     fetch(`${API}/api/tenants`)
       .then((r) => r.json())
       .then((data) => setTenantList(data.tenants))
+      .catch(() => alert("Could not reach the server"));
+  }, []);
+
+   const [unitList, setUnitList] = useState<Unit[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/units`)
+      .then((r) => r.json())
+      .then((data) => setUnitList(data.units))
       .catch(() => alert("Could not reach the server"));
   }, []);
 
@@ -70,10 +79,11 @@ export default function Home() {
   }, []);
 
   /* ---------- Helpers and totals computed from the state ---------- */
-  const unitLabel = (id: string) => {
-    const u = units.find((x) => x.id === id);
-    const p = props.find((x) => x.id === u?.propertyId);
-    return `${p?.name ?? ""} / ${u?.name ?? ""}`;
+    const unitLabel = (id: string) => {
+    const u = unitList.find((x) => x.id === id);
+    if (!u) return "—";
+    const p = props.find((x) => x.id === u.propertyId);
+    return `${p?.name ?? ""} / ${u.name}`;
   };
   const tenantName = (id: string) => tenantList.find((t) => t.id === id)?.name ?? "—";
   const activeLeases = leaseList.filter((l) => l.status === "Active");
@@ -88,7 +98,7 @@ export default function Home() {
   const openRepairs = repairList.filter((r) => r.status !== "Done");
   const pct = expected ? Math.round((collected / expected) * 100) : 0;
 
-  const unitOptions = units.map((u) => ({ value: u.id, label: unitLabel(u.id) }));
+  const unitOptions = unitList.map((u) => ({ value: u.id, label: unitLabel(u.id) }));
   const tenantOptions = tenantList.map((t) => ({ value: t.id, label: t.name }));
   const closeModal = () => setModal(null);
 
@@ -214,6 +224,7 @@ async function deleteProperty(id: string) {
               tenantName={tenantName}
               unitLabel={unitLabel}
               goTo={setView}
+              units={unitList}
             />
           )}
           {view === "properties" && (
@@ -222,6 +233,8 @@ async function deleteProperty(id: string) {
               activeLeases={activeLeases}
               onAdd={() => setModal({ kind: "property" })}
               onDelete={deleteProperty}
+              units={unitList}
+              onAddUnit={(propertyId) => setModal({ kind: "unit", propertyId })}
             />
           )}
           {view === "tenants" && (
@@ -294,6 +307,30 @@ async function deleteProperty(id: string) {
           }}
         />
       )}
+
+      {modal?.kind === "unit" && (
+        <Modal
+          title="Add unit"
+          submitLabel="Save"
+          fields={[{ name: "name", label: "Unit name (e.g. A-101)" }]}
+          onClose={closeModal}
+          onSubmit={async (v) => {
+            const res = await fetch(`${API}/api/units`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ propertyId: modal.propertyId, name: v.name }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not save the unit");
+              return;
+            }
+            setUnitList((all) => [...all, data]);
+            closeModal();
+          }}
+        />
+      )}
+
       {modal?.kind === "tenant" && (
         <Modal
           title="Add tenant"

@@ -1,7 +1,6 @@
 import { Badge, Header, Stat } from "../components/Parts";
-import { units } from "../lib/data";
 import { money } from "../lib/ui";
-import type { Lease, Repair, View } from "../lib/types";
+import type { Lease, Unit, Repair, View } from "../lib/types";
 
 type Props = {
   propertyCount: number;
@@ -15,12 +14,13 @@ type Props = {
   balance: (l: Lease) => number;
   tenantName: (id: string) => string;
   unitLabel: (id: string) => string;
+  units: Unit[];
   goTo: (v: View) => void;
 };
 
 export function OverviewView({
   propertyCount, occupiedUnits, expected, collected, pct,
-  openRepairs, unpaid, drafts, balance, tenantName, unitLabel, goTo,
+  openRepairs, unpaid, drafts, balance, tenantName, unitLabel, goTo,units,
 }: Props) {
   return (
     <>

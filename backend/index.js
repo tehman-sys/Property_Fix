@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -8,6 +9,7 @@ const Tenant = require("./models/Tenant");
 const Lease = require("./models/Lease");
 const Repair = require("./models/Repair");
 const Payment = require("./models/Payment");
+const Unit = require("./models/Unit");
 
 app.use(cors());
 app.use(express.json());
@@ -95,6 +97,27 @@ app.delete("/api/properties/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
   }
 }); 
+
+app.get("/api/units", async (req, res) => {
+  try {
+    const units = await Unit.find().sort({ _id: 1 });
+    res.json({ units });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/units", async (req, res) => {
+  try {
+    const { propertyId, name } = req.body;
+    const property = await Property.findById(propertyId);
+    if (!property) return res.status(404).json({ error: "Property not found" });
+    const unit = await Unit.create({ propertyId, name });
+    res.status(201).json(unit);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 app.get("/api/tenants", async (req, res) => {
   try {

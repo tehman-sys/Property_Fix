@@ -1,16 +1,17 @@
 import { Header } from "../components/Parts";
-import { units } from "../lib/data";
 import { btnPrimary } from "../lib/ui";
-import type { Lease, Property } from "../lib/types";
+import type { Lease, Property, Unit } from "../lib/types";
 
 type Props = {
   properties: Property[];
   activeLeases: Lease[];
   onAdd: () => void;
   onDelete: (id: string) => void;
+  units: Unit[];
+  onAddUnit: (propertyId: string) => void;
 };
 
-export function PropertiesView({ properties, activeLeases, onAdd, onDelete }: Props) {
+export function PropertiesView({ properties, units, activeLeases, onAdd, onAddUnit, onDelete }: Props) {
   return (
     <>
       <Header
@@ -31,7 +32,13 @@ export function PropertiesView({ properties, activeLeases, onAdd, onDelete }: Pr
                 <span>{pu.length} units</span>
                 <span className="text-stone-500">{occ} occupied</span>
               </div>
-              <div className="mt-4 border-t border-stone-100 pt-3 text-right">
+                           <div className="mt-4 flex justify-between border-t border-stone-100 pt-3">
+                <button
+                  className="text-sm font-medium text-stone-700 hover:underline"
+                  onClick={() => onAddUnit(p.id)}
+                >
+                  Add unit
+                </button>
                 <button
                   className="text-sm font-medium text-red-600 hover:underline"
                   onClick={() => onDelete(p.id)}

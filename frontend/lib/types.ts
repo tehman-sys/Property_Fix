@@ -33,6 +33,7 @@ export type ModalState =
   | { kind: "lease" }
   | { kind: "repair" }
   | { kind: "payment"; leaseId: string }
+  | { kind: "unit"; propertyId: string }
   | null;
 
   export type Payment = { id: string; leaseId: string; amount: number; month: string };
