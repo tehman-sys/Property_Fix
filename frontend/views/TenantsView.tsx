@@ -1,5 +1,5 @@
 import { Header, Table } from "../components/Parts";
-import { btnPrimary } from "../lib/ui";
+import { btnDanger, btnPrimary } from "../lib/ui";
 import type { Lease, Tenant } from "../lib/types";
 
 type Props = {
@@ -28,10 +28,7 @@ export function TenantsView({ tenants, activeLeases, unitLabel, onAdd, onDelete 
               <td className="px-4 py-3 text-stone-500">{t.email}</td>
               <td className="px-4 py-3">{l ? unitLabel(l.unitId) : <span className="text-stone-400">None</span>}</td>
               <td className="px-4 py-3">
-                <button
-                  className="text-sm font-medium text-red-600 hover:underline"
-                  onClick={() => onDelete(t.id)}
-                >
+                <button className={btnDanger} onClick={() => onDelete(t.id)}>
                   Delete
                 </button>
               </td>

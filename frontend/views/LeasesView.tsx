@@ -1,5 +1,5 @@
 import { Badge, Header, Table } from "../components/Parts";
-import { btnGhost, btnPrimary, money } from "../lib/ui";
+import { btnDanger, btnGhost, btnPrimary, money } from "../lib/ui";
 import type { Lease } from "../lib/types";
 
 type Props = {
@@ -28,14 +28,11 @@ export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign, on
             <td className="px-4 py-3 text-stone-500">{l.start} to {l.end}</td>
             <td className="px-4 py-3"><Badge text={l.status} /></td>
             <td className="px-4 py-3 text-right">
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-2">
                 {l.status === "Draft" && (
                   <button className={btnGhost} onClick={() => onSign(l.id)}>Mark signed</button>
                 )}
-                <button
-                  className="text-sm font-medium text-red-600 hover:underline"
-                  onClick={() => onDelete(l.id)}
-                >
+                <button className={btnDanger} onClick={() => onDelete(l.id)}>
                   Delete
                 </button>
               </div>
