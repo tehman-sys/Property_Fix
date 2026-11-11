@@ -1,4 +1,4 @@
-import { tones,statusTone, inputCls, btnGhost, btnPrimary } from "../lib/ui";
+import { tones, statusTone, inputCls, btnGhost, btnPrimary } from "../lib/ui";
 import type { Field } from "../lib/types";
 
 export function Badge({ text }: { text: string }) {
@@ -73,13 +73,19 @@ export function Modal({
             <label key={f.name} className="block text-sm">
               <span className="mb-1 block text-stone-600">{f.label}</span>
               {f.type === "select" ? (
-                <select name={f.name} required className={inputCls}>
+                <select name={f.name} required defaultValue={f.defaultValue} className={inputCls}>
                   {f.options?.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               ) : (
-                <input name={f.name} type={f.type ?? "text"} required className={inputCls} />
+                <input
+                  name={f.name}
+                  type={f.type ?? "text"}
+                  required
+                  defaultValue={f.defaultValue}
+                  className={inputCls}
+                />
               )}
             </label>
           ))}

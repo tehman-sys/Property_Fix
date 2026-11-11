@@ -9,9 +9,10 @@ type Props = {
   onDelete: (id: string) => void;
   units: Unit[];
   onAddUnit: (propertyId: string) => void;
+  onEdit: (p: Property) => void;
 };
 
-export function PropertiesView({ properties, units, activeLeases, onAdd, onAddUnit, onDelete }: Props) {
+export function PropertiesView({ properties, units, activeLeases, onAdd, onAddUnit, onDelete, onEdit }: Props) {
   return (
     <>
       <Header
@@ -32,12 +33,18 @@ export function PropertiesView({ properties, units, activeLeases, onAdd, onAddUn
                 <span>{pu.length} units</span>
                 <span className="text-stone-500">{occ} occupied</span>
               </div>
-                           <div className="mt-4 flex justify-between border-t border-stone-100 pt-3">
+              <div className="mt-4 flex justify-between border-t border-stone-100 pt-3">
                 <button
                   className="text-sm font-medium text-stone-700 hover:underline"
                   onClick={() => onAddUnit(p.id)}
                 >
                   Add unit
+                </button>
+                <button
+                  className="text-sm font-medium text-stone-700 hover:underline"
+                  onClick={() => onEdit(p)}
+                >
+                  Edit
                 </button>
                 <button
                   className="text-sm font-medium text-red-600 hover:underline"

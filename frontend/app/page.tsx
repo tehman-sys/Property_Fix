@@ -43,7 +43,7 @@ export default function Home() {
       .catch(() => alert("Could not reach the server"));
   }, []);
 
-   const [unitList, setUnitList] = useState<Unit[]>([]);
+  const [unitList, setUnitList] = useState<Unit[]>([]);
 
   useEffect(() => {
     fetch(`${API}/api/units`)
@@ -79,7 +79,7 @@ export default function Home() {
   }, []);
 
   /* ---------- Helpers and totals computed from the state ---------- */
-    const unitLabel = (id: string) => {
+  const unitLabel = (id: string) => {
     const u = unitList.find((x) => x.id === id);
     if (!u) return "—";
     const p = props.find((x) => x.id === u.propertyId);
@@ -129,50 +129,50 @@ export default function Home() {
   };
 
   async function deleteTenant(id: string) {
-  if (!confirm("Delete this tenant?")) return;
-  try {
-    const res = await fetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
+    if (!confirm("Delete this tenant?")) return;
+    try {
+      const res = await fetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+      setTenantList((all) => all.filter((t) => t.id !== id));
+    } catch {
+      alert("Could not reach the server");
     }
-    setTenantList((all) => all.filter((t) => t.id !== id));
-  } catch {
-    alert("Could not reach the server");
   }
-}
 
-async function deleteLease(id: string) {
-  if (!confirm("Delete this lease and its payments?")) return;
-  try {
-    const res = await fetch(`${API}/api/leases/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
+  async function deleteLease(id: string) {
+    if (!confirm("Delete this lease and its payments?")) return;
+    try {
+      const res = await fetch(`${API}/api/leases/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+      setLeaseList((all) => all.filter((l) => l.id !== id));
+      setPayments((all) => all.filter((p) => p.leaseId !== id));
+    } catch {
+      alert("Could not reach the server");
     }
-    setLeaseList((all) => all.filter((l) => l.id !== id));
-    setPayments((all) => all.filter((p) => p.leaseId !== id));
-  } catch {
-    alert("Could not reach the server");
   }
-}
 
-async function deleteProperty(id: string) {
-  if (!confirm("Delete this property?")) return;
-  try {
-    const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
+  async function deleteProperty(id: string) {
+    if (!confirm("Delete this property?")) return;
+    try {
+      const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+      setProps((all) => all.filter((p) => p.id !== id));
+    } catch {
+      alert("Could not reach the server");
     }
-    setProps((all) => all.filter((p) => p.id !== id));
-  } catch {
-    alert("Could not reach the server");
   }
-}
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -235,6 +235,7 @@ async function deleteProperty(id: string) {
               onDelete={deleteProperty}
               units={unitList}
               onAddUnit={(propertyId) => setModal({ kind: "unit", propertyId })}
+              onEdit={(p) => setModal({ kind: "editProperty", property: p })}
             />
           )}
           {view === "tenants" && (
@@ -303,6 +304,34 @@ async function deleteProperty(id: string) {
             }
             const created = await res.json();
             setProps((all) => [...all, created]);
+            closeModal();
+          }}
+        />
+      )}
+
+      {modal?.kind === "editProperty" && (
+        <Modal
+          title="Edit property"
+          submitLabel="Save changes"
+          fields={[
+            { name: "name", label: "Name", defaultValue: modal.property.name },
+            { name: "address", label: "Address", defaultValue: modal.property.address },
+            { name: "type", label: "Type (e.g. Apartments)", defaultValue: modal.property.type },
+          ]}
+          onClose={closeModal}
+          onSubmit={async (v) => {
+            const id = modal.property.id;
+            const res = await fetch(`${API}/api/properties/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: v.name, address: v.address, type: v.type }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not update the property");
+              return;
+            }
+            setProps((all) => all.map((p) => (p.id === id ? data : p)));
             closeModal();
           }}
         />
@@ -428,7 +457,7 @@ async function deleteProperty(id: string) {
           submitLabel="Save payment"
           fields={[{ name: "amount", label: "Amount received", type: "number" }]}
           onClose={closeModal}
-                   onSubmit={async (v) => {
+          onSubmit={async (v) => {
             const leaseId = modal.leaseId;
             const res = await fetch(`${API}/api/payments`, {
               method: "POST",

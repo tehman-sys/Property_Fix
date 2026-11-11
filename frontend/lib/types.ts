@@ -26,6 +26,7 @@ export type Field = {
   label: string;
   type?: "text" | "number" | "date" | "select";
   options?: { value: string; label: string }[];
+  defaultValue?: string;
 };
 export type ModalState =
   | { kind: "property" }
@@ -34,6 +35,7 @@ export type ModalState =
   | { kind: "repair" }
   | { kind: "payment"; leaseId: string }
   | { kind: "unit"; propertyId: string }
+  | { kind: "editProperty"; property: Property }
   | null;
 
   export type Payment = { id: string; leaseId: string; amount: number; month: string };
