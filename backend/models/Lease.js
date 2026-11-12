@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const leaseSchema = new mongoose.Schema({
+  ownerId: { type: String, required: true, index: true },
   unitId: { type: String, required: true },
   tenantId: { type: String, required: true },
   start: { type: String, required: true },

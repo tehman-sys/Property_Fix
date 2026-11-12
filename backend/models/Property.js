@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const propertySchema = new mongoose.Schema({
+  ownerId: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true },
   address: { type: String, required: true, trim: true },
   type: { type: String, required: true, trim: true },

@@ -41,3 +41,4 @@ export type ModalState =
   | null;
 
   export type Payment = { id: string; leaseId: string; amount: number; month: string };
+  export type User = { id: string; name: string; email: string };

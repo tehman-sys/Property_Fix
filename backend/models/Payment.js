@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema({
+  ownerId: { type: String, required: true, index: true },
   leaseId: { type: String, required: true },
   amount: { type: Number, required: true, min: 1 },
   month: { type: String, required: true }, // e.g. "2026-10"

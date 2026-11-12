@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const repairSchema = new mongoose.Schema({
+  ownerId: { type: String, required: true, index: true },
   unitId: { type: String, required: true },
   title: { type: String, required: true, trim: true },
   priority: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },

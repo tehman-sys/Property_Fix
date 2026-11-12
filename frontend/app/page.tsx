@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Parts";
-import { nav } from "../lib/ui";
-import type { Lease, ModalState, Property, Payment, Repair, RepairStatus, Unit, Tenant, View } from "../lib/types";
+import { btnGhost, nav } from "../lib/ui";
+import type { User, Lease, ModalState, Property, Payment, Repair, RepairStatus, Unit, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
 import { PropertiesView } from "../views/PropertiesView";
 import { RentView } from "../views/RentView";
 import { RepairsView } from "../views/RepairsView";
 import { TenantsView } from "../views/TenantsView";
+import { AuthScreen } from "../components/AuthScreen";
+import { authFetch, clearToken, getToken } from "../lib/api";
 
 const nextStatus: Record<RepairStatus, RepairStatus> = {
   Open: "In progress",
@@ -20,7 +22,7 @@ const nextStatus: Record<RepairStatus, RepairStatus> = {
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-export default function Home() {
+function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   /* ---------- State: the data that can change ---------- */
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<ModalState>(null);
@@ -32,7 +34,7 @@ export default function Home() {
   const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
-    const get = (path: string) => fetch(`${API}/api/${path}`).then((r) => r.json());
+    const get = (path: string) => authFetch(`${API}/api/${path}`).then((r) => r.json());
     Promise.all([
       get("properties"), get("units"), get("tenants"),
       get("leases"), get("repairs"), get("payments"),
@@ -53,7 +55,7 @@ export default function Home() {
   const [monthPayments, setMonthPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/payments?month=${rentMonth}`)
+    authFetch(`${API}/api/payments?month=${rentMonth}`)
       .then((r) => r.json())
       .then((data) => setMonthPayments(data.payments ?? []))
       .catch(() => alert("Could not reach the server"));
@@ -88,7 +90,7 @@ export default function Home() {
   const closeModal = () => setModal(null);
 
   const signLease = async (id: string) => {
-    const res = await fetch(`${API}/api/leases/${id}/sign`, { method: "POST" });
+    const res = await authFetch(`${API}/api/leases/${id}/sign`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
       alert(data.error ?? "Could not sign the lease");
@@ -100,7 +102,7 @@ export default function Home() {
   const advanceRepair = async (id: string) => {
     const repair = repairList.find((x) => x.id === id);
     if (!repair) return;
-    const res = await fetch(`${API}/api/repairs/${id}`, {
+    const res = await authFetch(`${API}/api/repairs/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus[repair.status] }),
@@ -116,7 +118,7 @@ export default function Home() {
   async function deleteTenant(id: string) {
     if (!confirm("Delete this tenant?")) return;
     try {
-      const res = await fetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
+      const res = await authFetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -131,7 +133,7 @@ export default function Home() {
   async function deleteLease(id: string) {
     if (!confirm("Delete this lease and its payments?")) return;
     try {
-      const res = await fetch(`${API}/api/leases/${id}`, { method: "DELETE" });
+      const res = await authFetch(`${API}/api/leases/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -139,7 +141,7 @@ export default function Home() {
       }
       setLeaseList((all) => all.filter((l) => l.id !== id));
       setPayments((all) => all.filter((p) => p.leaseId !== id));
-          setMonthPayments((all) => all.filter((p) => p.leaseId !== id));
+      setMonthPayments((all) => all.filter((p) => p.leaseId !== id));
     } catch {
       alert("Could not reach the server");
     }
@@ -148,7 +150,7 @@ export default function Home() {
   async function deleteProperty(id: string) {
     if (!confirm("Delete this property and all its units, leases and repairs?")) return;
     try {
-      const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
+      const res = await authFetch(`${API}/api/properties/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -169,7 +171,7 @@ export default function Home() {
   async function deleteRepair(id: string) {
     if (!confirm("Delete this repair?")) return;
     try {
-      const res = await fetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
+      const res = await authFetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error);
@@ -198,6 +200,11 @@ export default function Home() {
             </button>
           ))}
         </nav>
+        <div className="mt-8 border-t border-stone-100 pt-4 text-sm">
+          <p className="truncate font-medium">{user.name}</p>
+          <p className="truncate text-xs text-stone-500">{user.email}</p>
+          <button className={`${btnGhost} mt-3 w-full`} onClick={onLogout}>Log out</button>
+        </div>
       </aside>
 
       <div className="flex-1">
@@ -213,6 +220,9 @@ export default function Home() {
               {n.label}
             </button>
           ))}
+          <button className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-stone-600" onClick={onLogout}>
+            Log out
+          </button>
         </nav>
 
         {/* The screen that matches the selected tab */}
@@ -302,7 +312,7 @@ export default function Home() {
           ]}
           onClose={closeModal}
           onSubmit={async (v) => {
-            const res = await fetch(`${API}/api/properties`, {
+            const res = await authFetch(`${API}/api/properties`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: v.name, address: v.address, type: v.type }),
@@ -330,7 +340,7 @@ export default function Home() {
           onClose={closeModal}
           onSubmit={async (v) => {
             const id = modal.property.id;
-            const res = await fetch(`${API}/api/properties/${id}`, {
+            const res = await authFetch(`${API}/api/properties/${id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: v.name, address: v.address, type: v.type }),
@@ -358,7 +368,7 @@ export default function Home() {
           onClose={closeModal}
           onSubmit={async (v) => {
             const id = modal.tenant.id;
-            const res = await fetch(`${API}/api/tenants/${id}`, {
+            const res = await authFetch(`${API}/api/tenants/${id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: v.name, phone: v.phone, email: v.email }),
@@ -386,7 +396,7 @@ export default function Home() {
           onClose={closeModal}
           onSubmit={async (v) => {
             const id = modal.lease.id;
-            const res = await fetch(`${API}/api/leases/${id}`, {
+            const res = await authFetch(`${API}/api/leases/${id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ start: v.start, end: v.end, rent: Number(v.rent) }),
@@ -409,7 +419,7 @@ export default function Home() {
           fields={[{ name: "name", label: "Unit name (e.g. A-101)" }]}
           onClose={closeModal}
           onSubmit={async (v) => {
-            const res = await fetch(`${API}/api/units`, {
+            const res = await authFetch(`${API}/api/units`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ propertyId: modal.propertyId, name: v.name }),
@@ -436,7 +446,7 @@ export default function Home() {
           ]}
           onClose={closeModal}
           onSubmit={async (v) => {
-            const res = await fetch(`${API}/api/tenants`, {
+            const res = await authFetch(`${API}/api/tenants`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: v.name, phone: v.phone, email: v.email }),
@@ -464,7 +474,7 @@ export default function Home() {
           ]}
           onClose={closeModal}
           onSubmit={async (v) => {
-            const res = await fetch(`${API}/api/leases`, {
+            const res = await authFetch(`${API}/api/leases`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -501,7 +511,7 @@ export default function Home() {
           ]}
           onClose={closeModal}
           onSubmit={async (v) => {
-            const res = await fetch(`${API}/api/repairs`, {
+            const res = await authFetch(`${API}/api/repairs`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ unitId: v.unitId, title: v.title, priority: v.priority }),
@@ -524,7 +534,7 @@ export default function Home() {
           onClose={closeModal}
           onSubmit={async (v) => {
             const leaseId = modal.leaseId;
-            const res = await fetch(`${API}/api/payments`, {
+            const res = await authFetch(`${API}/api/payments`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ leaseId, amount: Number(v.amount) }),
@@ -541,5 +551,36 @@ export default function Home() {
         />
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!getToken()) {
+      setReady(true);
+      return;
+    }
+    authFetch(`${API}/api/auth/me`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.user) setUser(d.user);
+      })
+      .catch(() => {})
+      .finally(() => setReady(true));
+  }, []);
+
+  if (!ready) return null;
+  if (!user) return <AuthScreen onAuthed={setUser} />;
+  return (
+    <Dashboard
+      user={user}
+      onLogout={() => {
+        clearToken();
+        setUser(null);
+      }}
+    />
   );
 }
