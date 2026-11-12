@@ -46,7 +46,18 @@ export default function Home() {
         setPayments(pay.payments ?? []);
       })
       .catch(() => alert("Could not reach the server"));
-  }, []);   
+  }, []);
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const [rentMonth, setRentMonth] = useState(thisMonth);
+  const [monthPayments, setMonthPayments] = useState<Payment[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/payments?month=${rentMonth}`)
+      .then((r) => r.json())
+      .then((data) => setMonthPayments(data.payments ?? []))
+      .catch(() => alert("Could not reach the server"));
+  }, [rentMonth]);
 
   /* ---------- Helpers and totals computed from the state ---------- */
   const unitLabel = (id: string) => {
@@ -60,7 +71,11 @@ export default function Home() {
   const paid: Record<string, number> = {};
   for (const p of payments) paid[p.leaseId] = (paid[p.leaseId] ?? 0) + p.amount;
   const balance = (l: Lease) => l.rent - (paid[l.id] ?? 0);
-  const rentState = (l: Lease) => (balance(l) <= 0 ? "Paid" : (paid[l.id] ?? 0) > 0 ? "Partial" : "Unpaid");
+  const rentLeases = leaseList.filter(
+    (l) => l.status !== "Draft" && l.start.slice(0, 7) <= rentMonth && l.end.slice(0, 7) >= rentMonth
+  );
+  const rentPaid: Record<string, number> = {};
+  for (const p of monthPayments) rentPaid[p.leaseId] = (rentPaid[p.leaseId] ?? 0) + p.amount;
 
   const expected = activeLeases.reduce((s, l) => s + l.rent, 0);
   const collected = activeLeases.reduce((s, l) => s + (paid[l.id] ?? 0), 0);
@@ -124,46 +139,47 @@ export default function Home() {
       }
       setLeaseList((all) => all.filter((l) => l.id !== id));
       setPayments((all) => all.filter((p) => p.leaseId !== id));
+          setMonthPayments((all) => all.filter((p) => p.leaseId !== id));
     } catch {
       alert("Could not reach the server");
     }
   }
 
   async function deleteProperty(id: string) {
-  if (!confirm("Delete this property and all its units, leases and repairs?")) return;
-  try {
-    const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
+    if (!confirm("Delete this property and all its units, leases and repairs?")) return;
+    try {
+      const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+      const goneUnits = new Set(unitList.filter((u) => u.propertyId === id).map((u) => u.id));
+      const goneLeases = new Set(leaseList.filter((l) => goneUnits.has(l.unitId)).map((l) => l.id));
+      setProps((all) => all.filter((p) => p.id !== id));
+      setUnitList((all) => all.filter((u) => !goneUnits.has(u.id)));
+      setLeaseList((all) => all.filter((l) => !goneUnits.has(l.unitId)));
+      setPayments((all) => all.filter((p) => !goneLeases.has(p.leaseId)));
+      setRepairList((all) => all.filter((r) => !goneUnits.has(r.unitId)));
+    } catch {
+      alert("Could not reach the server");
     }
-    const goneUnits = new Set(unitList.filter((u) => u.propertyId === id).map((u) => u.id));
-    const goneLeases = new Set(leaseList.filter((l) => goneUnits.has(l.unitId)).map((l) => l.id));
-    setProps((all) => all.filter((p) => p.id !== id));
-    setUnitList((all) => all.filter((u) => !goneUnits.has(u.id)));
-    setLeaseList((all) => all.filter((l) => !goneUnits.has(l.unitId)));
-    setPayments((all) => all.filter((p) => !goneLeases.has(p.leaseId)));
-    setRepairList((all) => all.filter((r) => !goneUnits.has(r.unitId)));
-  } catch {
-    alert("Could not reach the server");
   }
-}
 
-async function deleteRepair(id: string) {
-  if (!confirm("Delete this repair?")) return;
-  try {
-    const res = await fetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
+  async function deleteRepair(id: string) {
+    if (!confirm("Delete this repair?")) return;
+    try {
+      const res = await fetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+      setRepairList((all) => all.filter((r) => r.id !== id));
+    } catch {
+      alert("Could not reach the server");
     }
-    setRepairList((all) => all.filter((r) => r.id !== id));
-  } catch {
-    alert("Could not reach the server");
   }
-}
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -236,6 +252,7 @@ async function deleteRepair(id: string) {
               unitLabel={unitLabel}
               onAdd={() => setModal({ kind: "tenant" })}
               onDelete={deleteTenant}
+              onEdit={(t) => setModal({ kind: "editTenant", tenant: t })}
             />
           )}
           {view === "leases" && (
@@ -246,18 +263,18 @@ async function deleteRepair(id: string) {
               onCreate={() => setModal({ kind: "lease" })}
               onSign={signLease}
               onDelete={deleteLease}
+              onEdit={(l) => setModal({ kind: "editLease", lease: l })}
             />
           )}
           {view === "rent" && (
             <RentView
-              leases={activeLeases}
-              expected={expected}
-              collected={collected}
-              paid={paid}
+              leases={rentLeases}
+              month={rentMonth}
+              isCurrent={rentMonth === thisMonth}
+              paid={rentPaid}
               tenantName={tenantName}
               unitLabel={unitLabel}
-              balance={balance}
-              rentState={rentState}
+              onMonthChange={setRentMonth}
               onRecord={(leaseId) => setModal({ kind: "payment", leaseId })}
             />
           )}
@@ -324,6 +341,62 @@ async function deleteRepair(id: string) {
               return;
             }
             setProps((all) => all.map((p) => (p.id === id ? data : p)));
+            closeModal();
+          }}
+        />
+      )}
+
+      {modal?.kind === "editTenant" && (
+        <Modal
+          title="Edit tenant"
+          submitLabel="Save changes"
+          fields={[
+            { name: "name", label: "Full name", defaultValue: modal.tenant.name },
+            { name: "phone", label: "Phone", defaultValue: modal.tenant.phone },
+            { name: "email", label: "Email", type: "email", defaultValue: modal.tenant.email },
+          ]}
+          onClose={closeModal}
+          onSubmit={async (v) => {
+            const id = modal.tenant.id;
+            const res = await fetch(`${API}/api/tenants/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: v.name, phone: v.phone, email: v.email }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not update the tenant");
+              return;
+            }
+            setTenantList((all) => all.map((t) => (t.id === id ? data : t)));
+            closeModal();
+          }}
+        />
+      )}
+
+      {modal?.kind === "editLease" && (
+        <Modal
+          title="Edit lease"
+          submitLabel="Save changes"
+          fields={[
+            { name: "start", label: "Start date", type: "date", defaultValue: modal.lease.start },
+            { name: "end", label: "End date", type: "date", defaultValue: modal.lease.end },
+            { name: "rent", label: "Monthly rent", type: "number", defaultValue: String(modal.lease.rent) },
+          ]}
+          onClose={closeModal}
+          onSubmit={async (v) => {
+            const id = modal.lease.id;
+            const res = await fetch(`${API}/api/leases/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ start: v.start, end: v.end, rent: Number(v.rent) }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              alert(data.error ?? "Could not update the lease");
+              return;
+            }
+            setLeaseList((all) => all.map((l) => (l.id === id ? data : l)));
             closeModal();
           }}
         />
@@ -462,6 +535,7 @@ async function deleteRepair(id: string) {
               return;
             }
             setPayments((all) => [...all, data]);
+            setMonthPayments((all) => [...all, data]);
             closeModal();
           }}
         />

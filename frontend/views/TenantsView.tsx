@@ -1,5 +1,5 @@
 import { Header, Table } from "../components/Parts";
-import { btnDanger, btnPrimary } from "../lib/ui";
+import { btnDanger, btnGhost, btnPrimary } from "../lib/ui";
 import type { Lease, Tenant } from "../lib/types";
 
 type Props = {
@@ -7,10 +7,11 @@ type Props = {
   activeLeases: Lease[];
   unitLabel: (id: string) => string;
   onAdd: () => void;
+  onEdit: (t: Tenant) => void;
   onDelete: (id: string) => void;
 };
 
-export function TenantsView({ tenants, activeLeases, unitLabel, onAdd, onDelete }: Props) {
+export function TenantsView({ tenants, activeLeases, unitLabel, onAdd, onEdit, onDelete }: Props) {
   return (
     <>
       <Header
@@ -28,9 +29,10 @@ export function TenantsView({ tenants, activeLeases, unitLabel, onAdd, onDelete 
               <td className="px-4 py-3 text-stone-500">{t.email}</td>
               <td className="px-4 py-3">{l ? unitLabel(l.unitId) : <span className="text-stone-400">None</span>}</td>
               <td className="px-4 py-3">
-                <button className={btnDanger} onClick={() => onDelete(t.id)}>
-                  Delete
-                </button>
+                <div className="flex gap-2">
+                  <button className={btnGhost} onClick={() => onEdit(t)}>Edit</button>
+                  <button className={btnDanger} onClick={() => onDelete(t.id)}>Delete</button>
+                </div>
               </td>
             </tr>
           );

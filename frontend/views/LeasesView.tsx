@@ -8,10 +8,11 @@ type Props = {
   unitLabel: (id: string) => string;
   onCreate: () => void;
   onSign: (leaseId: string) => void;
+  onEdit: (l: Lease) => void;
   onDelete: (leaseId: string) => void;
 };
 
-export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign, onDelete }: Props) {
+export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign, onEdit, onDelete }: Props) {
   return (
     <>
       <Header
@@ -32,9 +33,10 @@ export function LeasesView({ leases, tenantName, unitLabel, onCreate, onSign, on
                 {l.status === "Draft" && (
                   <button className={btnGhost} onClick={() => onSign(l.id)}>Mark signed</button>
                 )}
-                <button className={btnDanger} onClick={() => onDelete(l.id)}>
-                  Delete
-                </button>
+                {l.status !== "Expired" && (
+                  <button className={btnGhost} onClick={() => onEdit(l)}>Edit</button>
+                )}
+                <button className={btnDanger} onClick={() => onDelete(l.id)}>Delete</button>
               </div>
             </td>
           </tr>
