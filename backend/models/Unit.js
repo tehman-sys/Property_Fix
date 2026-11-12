@@ -1,7 +1,7 @@
     const mongoose = require("mongoose");
     
     const unitSchema = new mongoose.Schema({
-      name: { type: String, trim: true },
+    name: { type: String, required: true, trim: true },
       propertyId: { type: String, required: true },
     
     });

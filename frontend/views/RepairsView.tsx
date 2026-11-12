@@ -1,5 +1,5 @@
 import { Badge, Header } from "../components/Parts";
-import { btnGhost, btnPrimary } from "../lib/ui";
+import { btnDanger, btnGhost, btnPrimary } from "../lib/ui";
 import type { Repair } from "../lib/types";
 
 type Props = {
@@ -7,9 +7,10 @@ type Props = {
   unitLabel: (id: string) => string;
   onReport: () => void;
   onNext: (repairId: string) => void;
+  onDelete: (repairId: string) => void;
 };
 
-export function RepairsView({ repairs, unitLabel, onReport, onNext }: Props) {
+export function RepairsView({ repairs, unitLabel, onReport, onNext, onDelete }: Props) {
   return (
     <>
       <Header
@@ -28,6 +29,7 @@ export function RepairsView({ repairs, unitLabel, onReport, onNext }: Props) {
               <Badge text={r.priority} />
               <Badge text={r.status} />
               <button className={btnGhost} onClick={() => onNext(r.id)}>Next status</button>
+              <button className={btnDanger} onClick={() => onDelete(r.id)}>Delete</button>
             </div>
           </div>
         ))}

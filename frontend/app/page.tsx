@@ -24,59 +24,29 @@ export default function Home() {
   /* ---------- State: the data that can change ---------- */
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<ModalState>(null);
-
   const [props, setProps] = useState<Property[]>([]);
-
-  useEffect(() => {
-    fetch(`${API}/api/properties`)
-      .then((r) => r.json())
-      .then((data) => setProps(data.properties))
-      .catch(() => alert("Could not reach the server"));
-  }, []);
-
   const [tenantList, setTenantList] = useState<Tenant[]>([]);
-
-  useEffect(() => {
-    fetch(`${API}/api/tenants`)
-      .then((r) => r.json())
-      .then((data) => setTenantList(data.tenants))
-      .catch(() => alert("Could not reach the server"));
-  }, []);
-
   const [unitList, setUnitList] = useState<Unit[]>([]);
-
-  useEffect(() => {
-    fetch(`${API}/api/units`)
-      .then((r) => r.json())
-      .then((data) => setUnitList(data.units))
-      .catch(() => alert("Could not reach the server"));
-  }, []);
-
   const [leaseList, setLeaseList] = useState<Lease[]>([]);
   const [repairList, setRepairList] = useState<Repair[]>([]);
-
-  useEffect(() => {
-    fetch(`${API}/api/repairs`)
-      .then((r) => r.json())
-      .then((data) => setRepairList(data.repairs))
-      .catch(() => alert("Could not reach the server"));
-  }, []);
-
   const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/api/payments`)
-      .then((r) => r.json())
-      .then((data) => setPayments(data.payments))
+    const get = (path: string) => fetch(`${API}/api/${path}`).then((r) => r.json());
+    Promise.all([
+      get("properties"), get("units"), get("tenants"),
+      get("leases"), get("repairs"), get("payments"),
+    ])
+      .then(([p, u, t, l, r, pay]) => {
+        setProps(p.properties ?? []);
+        setUnitList(u.units ?? []);
+        setTenantList(t.tenants ?? []);
+        setLeaseList(l.leases ?? []);
+        setRepairList(r.repairs ?? []);
+        setPayments(pay.payments ?? []);
+      })
       .catch(() => alert("Could not reach the server"));
-  }, []);
-
-  useEffect(() => {
-    fetch(`${API}/api/leases`)
-      .then((r) => r.json())
-      .then((data) => setLeaseList(data.leases))
-      .catch(() => alert("Could not reach the server"));
-  }, []);
+  }, []);   
 
   /* ---------- Helpers and totals computed from the state ---------- */
   const unitLabel = (id: string) => {
@@ -160,19 +130,40 @@ export default function Home() {
   }
 
   async function deleteProperty(id: string) {
-    if (!confirm("Delete this property?")) return;
-    try {
-      const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error);
-        return;
-      }
-      setProps((all) => all.filter((p) => p.id !== id));
-    } catch {
-      alert("Could not reach the server");
+  if (!confirm("Delete this property and all its units, leases and repairs?")) return;
+  try {
+    const res = await fetch(`${API}/api/properties/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
     }
+    const goneUnits = new Set(unitList.filter((u) => u.propertyId === id).map((u) => u.id));
+    const goneLeases = new Set(leaseList.filter((l) => goneUnits.has(l.unitId)).map((l) => l.id));
+    setProps((all) => all.filter((p) => p.id !== id));
+    setUnitList((all) => all.filter((u) => !goneUnits.has(u.id)));
+    setLeaseList((all) => all.filter((l) => !goneUnits.has(l.unitId)));
+    setPayments((all) => all.filter((p) => !goneLeases.has(p.leaseId)));
+    setRepairList((all) => all.filter((r) => !goneUnits.has(r.unitId)));
+  } catch {
+    alert("Could not reach the server");
   }
+}
+
+async function deleteRepair(id: string) {
+  if (!confirm("Delete this repair?")) return;
+  try {
+    const res = await fetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
+    }
+    setRepairList((all) => all.filter((r) => r.id !== id));
+  } catch {
+    alert("Could not reach the server");
+  }
+}
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
@@ -276,6 +267,7 @@ export default function Home() {
               unitLabel={unitLabel}
               onReport={() => setModal({ kind: "repair" })}
               onNext={advanceRepair}
+              onDelete={deleteRepair}
             />
           )}
         </main>
@@ -367,7 +359,7 @@ export default function Home() {
           fields={[
             { name: "name", label: "Full name" },
             { name: "phone", label: "Phone" },
-            { name: "email", label: "Email", type: "text" },
+            { name: "email", label: "Email", type: "email" },
           ]}
           onClose={closeModal}
           onSubmit={async (v) => {

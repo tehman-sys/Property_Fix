@@ -57,7 +57,9 @@ export function Modal({
   onClose: () => void;
   onSubmit: (values: Record<string, string>) => void;
 }) {
+  const blocked = fields.some((f) => f.type === "select" && !f.options?.length);
   return (
+
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
       <form
         onClick={(e) => e.stopPropagation()}
@@ -91,8 +93,13 @@ export function Modal({
           ))}
         </div>
         <div className="mt-6 flex justify-end gap-2">
+          {blocked && (
+            <p className="mt-3 text-sm text-rose-600">
+              Add the missing items first (a property, unit or tenant), then try again.
+            </p>
+          )}
           <button type="button" onClick={onClose} className={btnGhost}>Cancel</button>
-          <button type="submit" className={btnPrimary}>{submitLabel}</button>
+          <button type="submit" disabled={blocked} className={`${btnPrimary} disabled:opacity-50`}>{submitLabel}</button>
         </div>
       </form>
     </div>

@@ -24,7 +24,7 @@ export type RepairStatus = "Open" | "In progress" | "Done";
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "number" | "date" | "select";
+    type?: "text" | "number" | "date" | "select" | "email";
   options?: { value: string; label: string }[];
   defaultValue?: string;
 };

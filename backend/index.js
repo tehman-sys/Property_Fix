@@ -5,14 +5,17 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const mongoose = require("mongoose");
 const Property = require("./models/Property");
-const Tenant = require("./models/Tenant");  
+const Unit = require("./models/Unit");
+const Tenant = require("./models/Tenant");
 const Lease = require("./models/Lease");
 const Repair = require("./models/Repair");
 const Payment = require("./models/Payment");
-const Unit = require("./models/Unit");
 
 app.use(cors());
 app.use(express.json());
+
+const currentMonth = () => new Date().toISOString().slice(0, 7);
+const today = () => new Date().toISOString().slice(0, 10);
 
 let connecting = null;
 
@@ -42,6 +45,7 @@ app.use(async (req, res, next) => {
   }
 });
 
+/* ---------- Properties ---------- */
 app.get("/api/properties", async (req, res) => {
   try {
     const properties = await Property.find().sort({ _id: 1 });
@@ -88,16 +92,36 @@ app.patch("/api/properties/:id", async (req, res) => {
   }
 });
 
+// deletes the property and everything inside it, unless a unit has an active lease
 app.delete("/api/properties/:id", async (req, res) => {
   try {
+    const units = await Unit.find({ propertyId: req.params.id });
+    const unitIds = units.map((u) => String(u._id));
+
+    const active = await Lease.findOne({ unitId: { $in: unitIds }, status: "Active" });
+    if (active) {
+      return res
+        .status(409)
+        .json({ error: "A unit in this property has an active lease. Delete that lease first." });
+    }
+
     const property = await Property.findByIdAndDelete(req.params.id);
     if (!property) return res.status(404).json({ error: "Property not found" });
+
+    const leases = await Lease.find({ unitId: { $in: unitIds } });
+    const leaseIds = leases.map((l) => String(l._id));
+    await Payment.deleteMany({ leaseId: { $in: leaseIds } });
+    await Lease.deleteMany({ unitId: { $in: unitIds } });
+    await Repair.deleteMany({ unitId: { $in: unitIds } });
+    await Unit.deleteMany({ propertyId: req.params.id });
+
     res.json({ message: "Property deleted" });
   } catch (err) {
     res.status(400).json({ error: "Invalid id" });
   }
-}); 
+});
 
+/* ---------- Units ---------- */
 app.get("/api/units", async (req, res) => {
   try {
     const units = await Unit.find().sort({ _id: 1 });
@@ -109,9 +133,12 @@ app.get("/api/units", async (req, res) => {
 
 app.post("/api/units", async (req, res) => {
   try {
-    const { propertyId, name } = req.body;
+    const { propertyId } = req.body;
+    const name = String(req.body.name ?? "").trim();
     const property = await Property.findById(propertyId);
     if (!property) return res.status(404).json({ error: "Property not found" });
+    const dup = await Unit.findOne({ propertyId, name });
+    if (dup) return res.status(409).json({ error: "This property already has a unit with that name" });
     const unit = await Unit.create({ propertyId, name });
     res.status(201).json(unit);
   } catch (err) {
@@ -119,6 +146,7 @@ app.post("/api/units", async (req, res) => {
   }
 });
 
+/* ---------- Tenants ---------- */
 app.get("/api/tenants", async (req, res) => {
   try {
     const tenants = await Tenant.find().sort({ _id: 1 });
@@ -157,9 +185,9 @@ app.patch("/api/tenants/:id", async (req, res) => {
 
 app.delete("/api/tenants/:id", async (req, res) => {
   try {
-    const active = await Lease.findOne({ tenantId: req.params.id, status: "Active" });
-    if (active) {
-      return res.status(409).json({ error: "This tenant has an active lease. Delete the lease first." });
+    const anyLease = await Lease.findOne({ tenantId: req.params.id });
+    if (anyLease) {
+      return res.status(409).json({ error: "This tenant has leases. Delete those leases first." });
     }
     const tenant = await Tenant.findByIdAndDelete(req.params.id);
     if (!tenant) return res.status(404).json({ error: "Tenant not found" });
@@ -169,8 +197,11 @@ app.delete("/api/tenants/:id", async (req, res) => {
   }
 });
 
+/* ---------- Leases ---------- */
 app.get("/api/leases", async (req, res) => {
   try {
+    // any active lease whose end date has passed becomes Expired
+    await Lease.updateMany({ status: "Active", end: { $lt: today() } }, { status: "Expired" });
     const leases = await Lease.find().sort({ _id: 1 });
     res.json({ leases });
   } catch (err) {
@@ -184,6 +215,11 @@ app.post("/api/leases", async (req, res) => {
     if (start && end && end <= start) {
       return res.status(400).json({ error: "End date must be after start date" });
     }
+    const unit = await Unit.findById(unitId);
+    if (!unit) return res.status(404).json({ error: "Unit not found" });
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
     const lease = await Lease.create({ unitId, tenantId, start, end, rent, status: "Draft" });
     res.status(201).json(lease);
   } catch (err) {
@@ -196,6 +232,9 @@ app.post("/api/leases/:id/sign", async (req, res) => {
   try {
     const lease = await Lease.findById(req.params.id);
     if (!lease) return res.status(404).json({ error: "Lease not found" });
+    if (lease.status !== "Draft") {
+      return res.status(400).json({ error: "Only draft leases can be signed" });
+    }
     const clash = await Lease.findOne({
       unitId: lease.unitId,
       status: "Active",
@@ -220,6 +259,15 @@ app.patch("/api/leases/:id", async (req, res) => {
     if (lease.end <= lease.start) {
       return res.status(400).json({ error: "End date must be after start date" });
     }
+    if (lease.status === "Active") {
+      const payments = await Payment.find({ leaseId: String(lease._id), month: currentMonth() });
+      const paid = payments.reduce((sum, p) => sum + p.amount, 0);
+      if (lease.rent < paid) {
+        return res
+          .status(400)
+          .json({ error: `Rent can't be less than what is already paid this month (Rs ${paid})` });
+      }
+    }
     await lease.save();
     res.json(lease);
   } catch (err) {
@@ -238,6 +286,7 @@ app.delete("/api/leases/:id", async (req, res) => {
   }
 });
 
+/* ---------- Repairs ---------- */
 app.get("/api/repairs", async (req, res) => {
   try {
     const repairs = await Repair.find().sort({ _id: 1 });
@@ -250,6 +299,8 @@ app.get("/api/repairs", async (req, res) => {
 app.post("/api/repairs", async (req, res) => {
   try {
     const { unitId, title, priority } = req.body;
+    const unit = await Unit.findById(unitId);
+    if (!unit) return res.status(404).json({ error: "Unit not found" });
     const repair = await Repair.create({ unitId, title, priority, status: "Open" });
     res.status(201).json(repair);
   } catch (err) {
@@ -282,8 +333,7 @@ app.delete("/api/repairs/:id", async (req, res) => {
   }
 });
 
-const currentMonth = () => new Date().toISOString().slice(0, 7);
-
+/* ---------- Payments ---------- */
 app.get("/api/payments", async (req, res) => {
   try {
     const month = req.query.month || currentMonth();
@@ -336,8 +386,6 @@ app.delete("/api/payments/:id", async (req, res) => {
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
-
-
 
 // run a normal server locally; on Vercel the app is exported instead
 if (!process.env.VERCEL) {
