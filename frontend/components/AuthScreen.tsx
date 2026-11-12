@@ -38,25 +38,25 @@ export function AuthScreen({ onAuthed }: { onAuthed: (u: User) => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-50 p-4 text-stone-900">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-xl border border-stone-200 bg-white p-6">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 text-slate-900">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6">
         <p className="text-lg font-semibold tracking-tight">PropertyFix</p>
-        <p className="mb-5 mt-1 text-sm text-stone-500">
+        <p className="mb-5 mt-1 text-sm text-slate-500">
           {mode === "login" ? "Log in to your account." : "Create your account."}
         </p>
         <div className="space-y-3">
           {mode === "signup" && (
             <label className="block text-sm">
-              <span className="mb-1 block text-stone-600">Full name</span>
+              <span className="mb-1 block text-slate-600">Full name</span>
               <input name="name" required className={inputCls} />
             </label>
           )}
           <label className="block text-sm">
-            <span className="mb-1 block text-stone-600">Email</span>
+            <span className="mb-1 block text-slate-600">Email</span>
             <input name="email" type="email" required className={inputCls} />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-stone-600">Password</span>
+            <span className="mb-1 block text-slate-600">Password</span>
             <input name="password" type="password" required minLength={6} className={inputCls} />
           </label>
         </div>
@@ -66,7 +66,7 @@ export function AuthScreen({ onAuthed }: { onAuthed: (u: User) => void }) {
         </button>
         <button
           type="button"
-          className="mt-3 w-full text-center text-sm text-stone-500 hover:underline"
+          className="mt-3 w-full text-center text-sm text-slate-500 hover:underline"
           onClick={() => { setError(""); setMode(mode === "login" ? "signup" : "login"); }}
         >
           {mode === "login" ? "No account? Sign up" : "Already have an account? Log in"}

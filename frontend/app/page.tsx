@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "../components/Parts";
+import { Modal, PageSkeleton } from "../components/Parts";
 import { btnGhost, nav } from "../lib/ui";
 import type { User, Lease, ModalState, Property, Payment, Repair, RepairStatus, Unit, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
@@ -12,6 +12,8 @@ import { RepairsView } from "../views/RepairsView";
 import { TenantsView } from "../views/TenantsView";
 import { AuthScreen } from "../components/AuthScreen";
 import { authFetch, clearToken, getToken } from "../lib/api";
+import { Building2, LogOut } from "lucide-react";
+import { useFeedback } from "../components/Feedback";
 
 const nextStatus: Record<RepairStatus, RepairStatus> = {
   Open: "In progress",
@@ -24,6 +26,8 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   /* ---------- State: the data that can change ---------- */
+  const { notify, ask, ui: feedbackUi } = useFeedback();
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<ModalState>(null);
   const [props, setProps] = useState<Property[]>([]);
@@ -47,7 +51,9 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
         setRepairList(r.repairs ?? []);
         setPayments(pay.payments ?? []);
       })
-      .catch(() => alert("Could not reach the server"));
+      .catch(() => notify("Could not reach the server"))
+      .finally(() => setLoading(false));
+
   }, []);
 
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -58,7 +64,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
     authFetch(`${API}/api/payments?month=${rentMonth}`)
       .then((r) => r.json())
       .then((data) => setMonthPayments(data.payments ?? []))
-      .catch(() => alert("Could not reach the server"));
+      .catch(() => notify("Could not reach the server"));
   }, [rentMonth]);
 
   /* ---------- Helpers and totals computed from the state ---------- */
@@ -93,7 +99,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
     const res = await authFetch(`${API}/api/leases/${id}/sign`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.error ?? "Could not sign the lease");
+      notify(data.error ?? "Could not sign the lease");
       return;
     }
     setLeaseList((all) => all.map((x) => (x.id === id ? data : x)));
@@ -109,51 +115,51 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert(data.error ?? "Could not update the repair");
+      notify(data.error ?? "Could not update the repair");
       return;
     }
     setRepairList((all) => all.map((x) => (x.id === id ? data : x)));
   };
 
   async function deleteTenant(id: string) {
-    if (!confirm("Delete this tenant?")) return;
+    if (!(await ask("Delete this tenant?"))) return;
     try {
       const res = await authFetch(`${API}/api/tenants/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error);
+        notify(data.error);
         return;
       }
       setTenantList((all) => all.filter((t) => t.id !== id));
     } catch {
-      alert("Could not reach the server");
+      notify("Could not reach the server");
     }
   }
 
   async function deleteLease(id: string) {
-    if (!confirm("Delete this lease and its payments?")) return;
+    if (!(await ask("Delete this lease and its payments?"))) return;
     try {
       const res = await authFetch(`${API}/api/leases/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error);
+        notify(data.error);
         return;
       }
       setLeaseList((all) => all.filter((l) => l.id !== id));
       setPayments((all) => all.filter((p) => p.leaseId !== id));
       setMonthPayments((all) => all.filter((p) => p.leaseId !== id));
     } catch {
-      alert("Could not reach the server");
+      notify("Could not reach the server");
     }
   }
 
   async function deleteProperty(id: string) {
-    if (!confirm("Delete this property and all its units, leases and repairs?")) return;
+    if (!(await ask("Delete this property and all its units, leases and repairs?"))) return;
     try {
       const res = await authFetch(`${API}/api/properties/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error);
+        notify(data.error);
         return;
       }
       const goneUnits = new Set(unitList.filter((u) => u.propertyId === id).map((u) => u.id));
@@ -164,70 +170,103 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
       setPayments((all) => all.filter((p) => !goneLeases.has(p.leaseId)));
       setRepairList((all) => all.filter((r) => !goneUnits.has(r.unitId)));
     } catch {
-      alert("Could not reach the server");
+      notify("Could not reach the server");
     }
   }
 
   async function deleteRepair(id: string) {
-    if (!confirm("Delete this repair?")) return;
+    if (!(await ask("Delete this repair?"))) return;
     try {
       const res = await authFetch(`${API}/api/repairs/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error);
+        notify(data.error);
         return;
       }
       setRepairList((all) => all.filter((r) => r.id !== id));
     } catch {
-      alert("Could not reach the server");
+      notify("Could not reach the server");
     }
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 md:flex">
+       <div className="min-h-screen bg-slate-50 text-slate-900 md:flex">
       {/* Sidebar (desktop) */}
-      <aside className="hidden w-56 shrink-0 border-r border-stone-200 bg-white p-5 md:block">
-        <p className="mb-8 text-lg font-semibold tracking-tight">PropertyFix</p>
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
+        <div className="mb-8 flex items-center gap-2 px-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+            <Building2 size={18} />
+          </span>
+          <span className="text-lg font-semibold tracking-tight">PropertyFix</span>
+        </div>
+        <p className="mb-2 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">Menu</p>
         <nav className="space-y-1">
-          {nav.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setView(n.id)}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${view === n.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"
+          {nav.map((n) => {
+            const Icon = n.icon;
+            const active = view === n.id;
+            return (
+              <button
+                key={n.id}
+                onClick={() => setView(n.id)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium ${
+                  active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100"
                 }`}
-            >
-              {n.label}
-            </button>
-          ))}
+              >
+                <Icon size={18} />
+                {n.label}
+              </button>
+            );
+          })}
         </nav>
-        <div className="mt-8 border-t border-stone-100 pt-4 text-sm">
-          <p className="truncate font-medium">{user.name}</p>
-          <p className="truncate text-xs text-stone-500">{user.email}</p>
-          <button className={`${btnGhost} mt-3 w-full`} onClick={onLogout}>Log out</button>
+        <div className="mt-auto rounded-xl border border-slate-200 p-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white">
+              {user.name.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-slate-500">{user.email}</p>
+            </div>
+          </div>
+          <button className={`${btnGhost} mt-3 flex w-full items-center justify-center gap-2`} onClick={onLogout}>
+            <LogOut size={14} /> Log out
+          </button>
         </div>
       </aside>
 
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
+        {/* Top bar */}
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 md:px-10">
+          <p className="text-sm text-slate-500">
+            Welcome back, <span className="font-medium text-slate-900">{user.name.split(" ")[0]}</span>
+          </p>
+          <p className="hidden text-sm text-slate-400 sm:block">
+            {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </header>
+
         {/* Top nav (mobile) */}
-        <nav className="flex gap-1 overflow-x-auto border-b border-stone-200 bg-white p-2 md:hidden">
+        <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-2 md:hidden">
           {nav.map((n) => (
             <button
               key={n.id}
               onClick={() => setView(n.id)}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm ${view === n.id ? "bg-stone-900 text-white" : "text-stone-600"
-                }`}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm ${
+                view === n.id ? "bg-indigo-600 text-white" : "text-slate-600"
+              }`}
             >
               {n.label}
             </button>
           ))}
-          <button className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-stone-600" onClick={onLogout}>
+          <button className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-slate-600" onClick={onLogout}>
             Log out
           </button>
         </nav>
 
         {/* The screen that matches the selected tab */}
-        <main className="mx-auto max-w-5xl p-6 md:p-10">
-          {view === "overview" && (
+        <main className="mx-auto max-w-6xl p-6 md:p-10">
+          {loading && <PageSkeleton />}
+          {!loading && view === "overview" && (
             <OverviewView
               propertyCount={props.length}
               occupiedUnits={occupiedUnits}
@@ -240,43 +279,45 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               balance={balance}
               tenantName={tenantName}
               unitLabel={unitLabel}
-              goTo={setView}
               units={unitList}
-            />
-          )}
-          {view === "properties" && (
-            <PropertiesView
               properties={props}
               activeLeases={activeLeases}
-              onAdd={() => setModal({ kind: "property" })}
-              onDelete={deleteProperty}
-              units={unitList}
-              onAddUnit={(propertyId) => setModal({ kind: "unit", propertyId })}
-              onEdit={(p) => setModal({ kind: "editProperty", property: p })}
+              goTo={setView}
             />
           )}
-          {view === "tenants" && (
+          {!loading && view === "properties" && (
+            <PropertiesView
+              properties={props}
+              units={unitList}
+              activeLeases={activeLeases}
+              onAdd={() => setModal({ kind: "property" })}
+              onAddUnit={(propertyId) => setModal({ kind: "unit", propertyId })}
+              onEdit={(p) => setModal({ kind: "editProperty", property: p })}
+              onDelete={deleteProperty}
+            />
+          )}
+          {!loading && view === "tenants" && (
             <TenantsView
               tenants={tenantList}
               activeLeases={activeLeases}
               unitLabel={unitLabel}
               onAdd={() => setModal({ kind: "tenant" })}
-              onDelete={deleteTenant}
               onEdit={(t) => setModal({ kind: "editTenant", tenant: t })}
+              onDelete={deleteTenant}
             />
           )}
-          {view === "leases" && (
+          {!loading && view === "leases" && (
             <LeasesView
               leases={leaseList}
               tenantName={tenantName}
               unitLabel={unitLabel}
               onCreate={() => setModal({ kind: "lease" })}
               onSign={signLease}
-              onDelete={deleteLease}
               onEdit={(l) => setModal({ kind: "editLease", lease: l })}
+              onDelete={deleteLease}
             />
           )}
-          {view === "rent" && (
+          {!loading && view === "rent" && (
             <RentView
               leases={rentLeases}
               month={rentMonth}
@@ -288,7 +329,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               onRecord={(leaseId) => setModal({ kind: "payment", leaseId })}
             />
           )}
-          {view === "repairs" && (
+          {!loading && view === "repairs" && (
             <RepairsView
               repairs={repairList}
               unitLabel={unitLabel}
@@ -318,7 +359,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               body: JSON.stringify({ name: v.name, address: v.address, type: v.type }),
             });
             if (!res.ok) {
-              alert("Could not save the property");
+              notify("Could not save the property");
               return;
             }
             const created = await res.json();
@@ -347,7 +388,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not update the property");
+              notify(data.error ?? "Could not update the property");
               return;
             }
             setProps((all) => all.map((p) => (p.id === id ? data : p)));
@@ -375,7 +416,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not update the tenant");
+              notify(data.error ?? "Could not update the tenant");
               return;
             }
             setTenantList((all) => all.map((t) => (t.id === id ? data : t)));
@@ -403,7 +444,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not update the lease");
+              notify(data.error ?? "Could not update the lease");
               return;
             }
             setLeaseList((all) => all.map((l) => (l.id === id ? data : l)));
@@ -426,7 +467,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not save the unit");
+              notify(data.error ?? "Could not save the unit");
               return;
             }
             setUnitList((all) => [...all, data]);
@@ -452,7 +493,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               body: JSON.stringify({ name: v.name, phone: v.phone, email: v.email }),
             });
             if (!res.ok) {
-              alert("Could not save the tenant");
+              notify("Could not save the tenant");
               return;
             }
             const created = await res.json();
@@ -487,7 +528,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not create the lease");
+              notify(data.error ?? "Could not create the lease");
               return;
             }
             setLeaseList((all) => [...all, data]);
@@ -518,7 +559,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not report the repair");
+              notify(data.error ?? "Could not report the repair");
               return;
             }
             setRepairList((all) => [...all, data]);
@@ -541,7 +582,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error ?? "Could not save the payment");
+              notify(data.error ?? "Could not save the payment");
               return;
             }
             setPayments((all) => [...all, data]);
@@ -550,6 +591,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           }}
         />
       )}
+       {feedbackUi}
     </div>
   );
 }
