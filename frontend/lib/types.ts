@@ -1,5 +1,4 @@
-
-export type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs";
+export type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs"  | "settings";
 export type Property = { id: string; name: string; address: string; type: string };
 export type Unit = { id: string; propertyId: string; name: string };
 export type Tenant = { id: string; name: string; phone: string; email: string };
@@ -42,3 +41,4 @@ export type ModalState =
 
   export type Payment = { id: string; leaseId: string; amount: number; month: string };
   export type User = { id: string; name: string; email: string };
+  export type Settings = { ownerName: string; currency: string };

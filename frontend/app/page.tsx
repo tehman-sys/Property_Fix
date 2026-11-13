@@ -1,8 +1,10 @@
 "use client";
 
+import { SettingsView } from "../views/SettingsView";
+import { useSettings } from "../lib/useSettings";
 import { useEffect, useState } from "react";
 import { Modal, PageSkeleton } from "../components/Parts";
-import { btnGhost, nav } from "../lib/ui";
+import { btnGhost, nav, setCurrency } from "../lib/ui";
 import type { User, Lease, ModalState, Property, Payment, Repair, RepairStatus, Unit, Tenant, View } from "../lib/types";
 import { LeasesView } from "../views/LeasesView";
 import { OverviewView } from "../views/OverviewView";
@@ -14,6 +16,7 @@ import { AuthScreen } from "../components/AuthScreen";
 import { authFetch, clearToken, getToken } from "../lib/api";
 import { Building2, LogOut } from "lucide-react";
 import { useFeedback } from "../components/Feedback";
+import { RepairModal } from "../components/RepairModal";
 
 const nextStatus: Record<RepairStatus, RepairStatus> = {
   Open: "In progress",
@@ -27,6 +30,9 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   /* ---------- State: the data that can change ---------- */
   const { notify, ask, ui: feedbackUi } = useFeedback();
+  const { settings, save: saveSettings, exportData } = useSettings((m) => notify(m));
+  const displayName = settings.ownerName?.trim() || user.name;
+  setCurrency(settings.currency);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<ModalState>(null);
@@ -221,10 +227,10 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
         <div className="mt-auto rounded-xl border border-slate-200 p-3">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-medium text-white">
-              {user.name.charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-sm font-medium">{displayName}</p>
               <p className="truncate text-xs text-slate-500">{user.email}</p>
             </div>
           </div>
@@ -337,6 +343,9 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               onNext={advanceRepair}
               onDelete={deleteRepair}
             />
+          )}
+            {!loading && view === "settings" && (
+            <SettingsView settings={settings} onSave={saveSettings} onExport={exportData} />
           )}
         </main>
       </div>
@@ -536,26 +545,15 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           }}
         />
       )}
-      {modal?.kind === "repair" && (
-        <Modal
-          title="Report repair"
-          submitLabel="Save"
-          fields={[
-            { name: "unitId", label: "Unit", type: "select", options: unitOptions },
-            { name: "title", label: "What is broken?" },
-            {
-              name: "priority",
-              label: "Priority",
-              type: "select",
-              options: ["Low", "Medium", "High"].map((p) => ({ value: p, label: p })),
-            },
-          ]}
+            {modal?.kind === "repair" && (
+        <RepairModal
+          unitOptions={unitOptions}
           onClose={closeModal}
           onSubmit={async (v) => {
             const res = await authFetch(`${API}/api/repairs`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitId: v.unitId, title: v.title, priority: v.priority }),
+              body: JSON.stringify(v),
             });
             const data = await res.json();
             if (!res.ok) {

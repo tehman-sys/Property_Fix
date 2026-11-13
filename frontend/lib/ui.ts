@@ -1,8 +1,14 @@
 import { Building2, FileText, LayoutDashboard, Users, Wallet, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { View } from "./types";
+// at the top of ui.ts, with your other lucide imports (add Settings to that list)
+import { Settings as SettingsIcon } from "lucide-react";
 
-export const money = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
+
+let currentCurrency = "PKR";
+export const setCurrency = (c: string) => { currentCurrency = c; };
+export const money = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: currentCurrency, maximumFractionDigits: 0 }).format(n);
 
 export const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -11,6 +17,7 @@ export const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "leases", label: "Leases", icon: FileText },
   { id: "rent", label: "Rent", icon: Wallet },
   { id: "repairs", label: "Repairs", icon: Wrench },
+  { id: "settings", label: "Settings" , icon: SettingsIcon },
 ];
 
 export const tones: Record<string, string> = {

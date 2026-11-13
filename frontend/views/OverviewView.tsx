@@ -2,6 +2,8 @@ import { Building2, CheckCircle2, FileSignature, Home, Wallet, Wrench } from "lu
 import { Badge, EmptyState, Header, Stat } from "../components/Parts";
 import { btnPrimary, money } from "../lib/ui";
 import type { Lease, Property, Repair, Unit, View } from "../lib/types";
+import { AiSummary } from "../components/AiSummary";
+import { AskData } from "../components/AskData";
 
 type Props = {
   propertyCount: number;
@@ -48,6 +50,11 @@ export function OverviewView({
             <Stat label="Occupied" value={`${occupiedUnits}/${units.length}`} hint={`${occPct}% of units have an active lease`} icon={Home} tint="emerald" />
             <Stat label="Rent this month" value={money(expected)} hint={`${money(collected)} collected`} icon={Wallet} tint="amber" />
             <Stat label="Open repairs" value={String(openRepairs.length)} hint="need action" icon={Wrench} tint="rose" />
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <AiSummary />
+            <AskData />
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">

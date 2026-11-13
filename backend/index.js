@@ -10,7 +10,9 @@ const Tenant = require("./models/Tenant");
 const Lease = require("./models/Lease");
 const Repair = require("./models/Repair");
 const Payment = require("./models/Payment");
+const settingsRouter = require("./routes/settings");
 const User = require("./models/User");
+const aiRouter = require("./aiRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -456,6 +458,9 @@ app.delete("/api/payments/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
   }
 });
+
+app.use("/api/settings", settingsRouter);
+app.use("/api/ai", aiRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
