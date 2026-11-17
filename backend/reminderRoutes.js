@@ -3,6 +3,7 @@ const Reminder = require("./models/Reminder");
 const User = require("./models/User");
 const { runReminderAgent } = require("./agent");
 const { friendly } = require("./ai");
+const { runRenewalWatcher } = require("./renewals");
 
 const router = express.Router();
 
@@ -22,6 +23,18 @@ router.post("/run", async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("Agent error:", err.message);
+    const e = friendly(err);
+    res.status(e.status).json({ error: e.message });
+  }
+});
+
+router.post("/run-renewals", async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    const result = await runRenewalWatcher({ ownerId: req.userId, landlordName: user?.name });
+    res.json(result);
+  } catch (err) {
+    console.error("Renewal watcher error:", err.message);
     const e = friendly(err);
     res.status(e.status).json({ error: e.message });
   }

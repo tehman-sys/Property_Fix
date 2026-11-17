@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Bot, Check, Copy, X } from "lucide-react";
+import { Bell, Bot, CalendarClock, Check, Copy, X } from "lucide-react";
 import { Badge, EmptyState, Header } from "../components/Parts";
 import { authFetch } from "../lib/api";
 import { btnGhost, btnPrimary } from "../lib/ui";
@@ -11,7 +11,7 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 type Status = "Draft" | "Approved" | "Dismissed" | "NeedsReview";
 type Reminder = {
   id: string; tenantName: string; unitLabel: string; amount: number;
-  message: string; status: Status; note: string;
+  message: string; status: Status; note: string; type?: string; endDate?: string;
 };
 type RunResult = {
   drafts: number; needsReview: number; steps: number; remaining: number;
@@ -23,7 +23,7 @@ const order: Record<Status, number> = { NeedsReview: 0, Draft: 1, Approved: 2, D
 export function RemindersView() {
   const [items, setItems] = useState<Reminder[]>([]);
   const [result, setResult] = useState<RunResult | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
@@ -41,12 +41,13 @@ export function RemindersView() {
     load();
   }, []);
 
-  async function run() {
-    setBusy(true);
+  async function run(kind: "rent" | "renewals") {
+    setBusy(kind);
     setError("");
     setResult(null);
     try {
-      const res = await authFetch(`${API}/api/reminders/run`, { method: "POST" });
+      const path = kind === "rent" ? "run" : "run-renewals";
+      const res = await authFetch(`${API}/api/reminders/${path}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "The agent could not finish");
@@ -57,7 +58,7 @@ export function RemindersView() {
     } catch {
       setError("Could not reach the server");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
@@ -91,11 +92,16 @@ export function RemindersView() {
     <>
       <Header
         title="Reminders"
-        subtitle="Drafts written by the rent reminder agent. Nothing is sent until you do it."
+        subtitle="Drafts written by the agents. Nothing is sent until you do it."
         action={
-          <button className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`} onClick={run} disabled={busy}>
-            <Bot size={16} /> {busy ? "Agent is working..." : "Run reminder agent"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`} onClick={() => run("rent")} disabled={!!busy}>
+              <Bot size={16} /> {busy === "rent" ? "Agent is working..." : "Run reminder agent"}
+            </button>
+            <button className={`${btnGhost} flex items-center gap-2 disabled:opacity-50`} onClick={() => run("renewals")} disabled={!!busy}>
+              <CalendarClock size={16} /> {busy === "renewals" ? "Checking..." : "Check expiring leases"}
+            </button>
+          </div>
         }
       />
 
@@ -104,12 +110,12 @@ export function RemindersView() {
       {result && (
         <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
           {result.stopped === "nothing_to_do" ? (
-            <p>Nobody has an unpaid balance without a reminder. Nothing to do.</p>
+            <p>Nothing to do right now.</p>
           ) : (
             <>
               <p className="font-medium">
                 {result.drafts} draft(s) saved, {result.needsReview} sent to human review, in {result.steps} step(s).
-                {result.remaining > 0 && ` ${result.remaining} lease(s) still need a reminder (${result.stopped}). Run it again.`}
+                {result.remaining > 0 && ` ${result.remaining} item(s) still pending (${result.stopped}). Run it again.`}
               </p>
               <ul className="mt-2 space-y-1 font-mono text-xs text-indigo-800">
                 {result.trace.map((t, i) => <li key={i}>{i + 1}. {t}</li>)}
@@ -123,7 +129,7 @@ export function RemindersView() {
         <EmptyState
           icon={Bell}
           title="No reminders yet"
-          text="Click Run reminder agent. It finds tenants with an unpaid balance this month and drafts a message for each."
+          text="Run the reminder agent for unpaid rent, or check expiring leases for renewal messages."
         />
       ) : (
         <div className="space-y-3">
@@ -132,9 +138,16 @@ export function RemindersView() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{r.tenantName}</p>
-                  <p className="text-sm text-slate-500">{r.unitLabel} · balance {r.amount.toLocaleString("en-US")}</p>
+                  <p className="text-sm text-slate-500">
+                    {r.unitLabel} · {r.type === "Renewal" ? `lease ends ${r.endDate}` : `balance ${r.amount.toLocaleString("en-US")}`}
+                  </p>
                 </div>
-                <Badge text={r.status} />
+                <div className="flex items-center gap-2">
+                  {r.type === "Renewal" && (
+                    <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">Renewal</span>
+                  )}
+                  <Badge text={r.status} />
+                </div>
               </div>
               <p className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{r.message}</p>
               {r.status === "NeedsReview" && (

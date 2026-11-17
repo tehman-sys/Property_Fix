@@ -20,7 +20,7 @@ async function getUnpaidRows(ownerId, month) {
     Unit.find({ ownerId }).lean(),
     Property.find({ ownerId }).lean(),
     Tenant.find({ ownerId }).lean(),
-    Reminder.find({ ownerId, month }).lean(),
+    Reminder.find({ ownerId, month, type: { $ne: "Renewal" } }).lean(),
   ]);
   const handled = new Set(reminders.map((r) => r.leaseId)); // already has a reminder this month
   const paid = {};

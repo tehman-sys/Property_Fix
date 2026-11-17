@@ -15,6 +15,8 @@ const reminderSchema = new mongoose.Schema(
       default: "Draft",
     },
     note: { type: String, default: "" },
+    type: { type: String, enum: ["Rent", "Renewal"], default: "Rent" },
+    endDate: { type: String, default: "" },
   },
   { timestamps: true }
 );
