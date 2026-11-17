@@ -6,6 +6,7 @@ const Lease = require("./models/Lease");
 const Repair = require("./models/Repair");
 const Payment = require("./models/Payment");
 const { callJSON, AiError } = require("./ai");
+const { triageRepair } = require("./triage");
 
 const router = express.Router();
 
@@ -131,39 +132,11 @@ router.post("/summary", handle(async (req, res) => {
   res.json(data);
 }));
 
-/* ---------- Repair triage ---------- */
-const triageSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["priority", "category", "reason", "nextStep"],
-  properties: {
-    priority: { type: "string", enum: ["Low", "Medium", "High"] },
-    category: {
-      type: "string",
-      enum: ["Plumbing", "Electrical", "HVAC", "Appliance", "Structural", "Pest", "Security", "Other"],
-    },
-    reason: { type: "string" },
-    nextStep: { type: "string" },
-  },
-};
-
+//* ---------- Repair triage ---------- */
 router.post("/triage", handle(async (req, res) => {
   const description = String(req.body.description ?? "").trim().slice(0, 300);
   if (description.length < 5) return res.status(400).json({ error: "Describe the problem first" });
-  const data = await callJSON({
-    feature: "triage",
-    userId: req.userId,
-    name: "repair_triage",
-    schema: triageSchema,
-    system:
-      RULES +
-      " Triage a repair request. High: safety risk or no essential service (flooding, gas smell, fire or electrical danger, no water, security problem, AC or heating failure in extreme weather). " +
-      "Medium: something important is broken but the unit is still livable. Low: cosmetic or minor. " +
-      " Do not speculate. State only what the data shows. " +
-      "reason: one short sentence. nextStep: one short practical action for the landlord.",
-    user: JSON.stringify({ description }),
-  });
-  res.json(data);
+  res.json(await triageRepair(req.userId, description));
 }));
 
 /* ---------- Ask your data ---------- */

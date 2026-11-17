@@ -17,6 +17,7 @@ import { authFetch, clearToken, getToken } from "../lib/api";
 import { Building2, LogOut } from "lucide-react";
 import { useFeedback } from "../components/Feedback";
 import { RepairModal } from "../components/RepairModal";
+import { RemindersView } from "../views/RemindersView";
 
 const nextStatus: Record<RepairStatus, RepairStatus> = {
   Open: "In progress",
@@ -344,6 +345,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
               onDelete={deleteRepair}
             />
           )}
+            {!loading && view === "reminders" && <RemindersView />}
             {!loading && view === "settings" && (
             <SettingsView settings={settings} onSave={saveSettings} onExport={exportData} />
           )}

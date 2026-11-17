@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-react";
+import { Sparkles, Wrench } from "lucide-react";
 import { Badge, EmptyState, Header } from "../components/Parts";
 import { btnDanger, btnGhost, btnPrimary } from "../lib/ui";
 import type { Repair } from "../lib/types";
@@ -37,9 +37,18 @@ export function RepairsView({ repairs, unitLabel, onReport, onNext, onDelete }: 
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
                   <Wrench size={18} />
                 </span>
-                <div>
+                                <div>
                   <p className="font-medium">{r.title}</p>
                   <p className="text-sm text-slate-500">{unitLabel(r.unitId)}</p>
+                  {r.aiReason && (
+                    <p className="mt-1 flex items-start gap-1 text-xs text-indigo-700">
+                      <Sparkles size={12} className="mt-0.5 shrink-0" />
+                      <span>
+                        {r.aiCategory}: {r.aiReason} Next: {r.aiNextStep}
+                        {r.aiRaised && " (raised to High by the assistant)"}
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -90,4 +90,4 @@ async function callJSON({ feature, userId, system, user, name, schema }) {
   }
 }
 
-module.exports = { callJSON, AiError };
+module.exports = { callJSON, AiError, getClient, checkRate, MODEL, friendly };

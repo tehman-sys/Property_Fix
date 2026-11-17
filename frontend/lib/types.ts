@@ -1,4 +1,4 @@
-export type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs"  | "settings";
+export type View = "overview" | "properties" | "tenants" | "leases" | "rent" | "repairs"  | "settings" | "reminders";
 export type Property = { id: string; name: string; address: string; type: string };
 export type Unit = { id: string; propertyId: string; name: string };
 export type Tenant = { id: string; name: string; phone: string; email: string };
@@ -18,6 +18,10 @@ export type Repair = {
   title: string;
   priority: "Low" | "Medium" | "High";
   status: RepairStatus;
+  aiCategory?: string;
+  aiReason?: string;
+  aiNextStep?: string;
+  aiRaised?: boolean;
 };
 export type RepairStatus = "Open" | "In progress" | "Done";
 export type Field = {

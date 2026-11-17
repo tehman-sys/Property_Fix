@@ -1,4 +1,4 @@
-import { Building2, FileText, LayoutDashboard, Users, Wallet, Wrench } from "lucide-react";
+import { Building2, FileText, LayoutDashboard, Users, Wallet, Wrench, Bell } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { View } from "./types";
 // at the top of ui.ts, with your other lucide imports (add Settings to that list)
@@ -17,7 +17,8 @@ export const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "leases", label: "Leases", icon: FileText },
   { id: "rent", label: "Rent", icon: Wallet },
   { id: "repairs", label: "Repairs", icon: Wrench },
-  { id: "settings", label: "Settings" , icon: SettingsIcon },
+  { id: "reminders", label: "Reminders", icon: Bell },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export const tones: Record<string, string> = {
@@ -31,6 +32,7 @@ export const statusTone: Record<string, string> = {
   Draft: "amber", Partial: "amber", Open: "amber", "In progress": "amber",
   Expired: "red", Unpaid: "red", High: "red",
   Low: "gray", Medium: "gray",
+  Approved: "green", NeedsReview: "red", Dismissed: "gray",
 };
 
 export const inputCls =

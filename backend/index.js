@@ -13,6 +13,9 @@ const Payment = require("./models/Payment");
 const settingsRouter = require("./routes/settings");
 const User = require("./models/User");
 const aiRouter = require("./aiRoutes");
+const remindersRouter = require("./reminderRoutes");
+const cronRouter = require("./cronRoutes");
+const { triageRepair } = require("./triage");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -97,6 +100,9 @@ function auth(req, res, next) {
     res.status(401).json({ error: "Session expired. Please log in again." });
   }
 }
+
+
+app.use("/api/cron", cronRouter);
 app.use("/api", auth);
 
 app.get("/api/auth/me", async (req, res) => {
@@ -373,9 +379,30 @@ app.post("/api/repairs", async (req, res) => {
     const { unitId, title, priority } = req.body;
     const unit = await Unit.findOne({ _id: unitId, ownerId: req.userId });
     if (!unit) return res.status(404).json({ error: "Unit not found" });
+
+    // 1. save first, so the repair is never lost if the AI fails
     const repair = await Repair.create({
       unitId, title, priority, status: "Open", ownerId: req.userId,
     });
+
+    // 2. repair assistant: triage with a time limit, and it may only RAISE priority
+    try {
+      const t = await Promise.race([
+        triageRepair(req.userId, title),
+       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 6000)),
+      ]);
+      repair.aiCategory = t.category;
+      repair.aiReason = t.reason;
+      repair.aiNextStep = t.nextStep;
+      if (t.priority === "High" && repair.priority !== "High") {
+        repair.priority = "High";
+        repair.aiRaised = true;
+      }
+      await repair.save();
+    } catch (err) {
+      console.log(JSON.stringify({ agent: "repair_assistant", ok: false, error: err.message }));
+    }
+
     res.status(201).json(repair);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -461,6 +488,7 @@ app.delete("/api/payments/:id", async (req, res) => {
 
 app.use("/api/settings", settingsRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/reminders", remindersRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });

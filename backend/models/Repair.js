@@ -6,6 +6,10 @@ const repairSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   priority: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },
   status: { type: String, enum: ["Open", "In progress", "Done"], default: "Open" },
+  aiCategory: { type: String, default: "" },
+  aiReason: { type: String, default: "" },
+  aiNextStep: { type: String, default: "" },
+  aiRaised: { type: Boolean, default: false },
 });
 
 repairSchema.set("toJSON", {
