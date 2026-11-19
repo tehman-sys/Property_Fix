@@ -33,6 +33,7 @@ export const statusTone: Record<string, string> = {
   Expired: "red", Unpaid: "red", High: "red",
   Low: "gray", Medium: "gray",
   Approved: "green", NeedsReview: "red", Dismissed: "gray",
+    Sent: "green", Sending: "amber", Failed: "red",
 };
 
 export const inputCls =

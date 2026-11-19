@@ -1,28 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Bot, CalendarClock, Check, Copy, X } from "lucide-react";
+import { Bell, Bot, CalendarClock, Check, Copy, Send, X } from "lucide-react";
 import { Badge, EmptyState, Header } from "../components/Parts";
 import { authFetch } from "../lib/api";
 import { btnGhost, btnPrimary } from "../lib/ui";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Status = "Draft" | "Approved" | "Dismissed" | "NeedsReview";
+type Status = "Draft" | "Approved" | "Dismissed" | "NeedsReview" | "Sending" | "Sent" | "Failed";
 type Reminder = {
   id: string; tenantName: string; unitLabel: string; amount: number;
   message: string; status: Status; note: string; type?: string; endDate?: string;
+  sentAt?: string; sentTo?: string;
 };
 type RunResult = {
   drafts: number; needsReview: number; steps: number; remaining: number;
   stopped: string; trace: string[];
 };
+type SendResult = {
+  sent: number; skipped: number; failed: number; needsReview: number;
+  mode: string; stopped: string; trace: string[];
+};
 
-const order: Record<Status, number> = { NeedsReview: 0, Draft: 1, Approved: 2, Dismissed: 3 };
+const order: Record<Status, number> = {
+  NeedsReview: 0, Failed: 1, Draft: 2, Approved: 3, Sending: 4, Sent: 5, Dismissed: 6,
+};
 
 export function RemindersView() {
   const [items, setItems] = useState<Reminder[]>([]);
+  const [emailMode, setEmailMode] = useState("test");
   const [result, setResult] = useState<RunResult | null>(null);
+  const [sendResult, setSendResult] = useState<SendResult | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
@@ -32,6 +41,7 @@ export function RemindersView() {
       const res = await authFetch(`${API}/api/reminders`);
       const data = await res.json();
       setItems(data.reminders ?? []);
+      setEmailMode(data.emailMode ?? "test");
     } catch {
       setError("Could not reach the server");
     }
@@ -45,6 +55,7 @@ export function RemindersView() {
     setBusy(kind);
     setError("");
     setResult(null);
+    setSendResult(null);
     try {
       const path = kind === "rent" ? "run" : "run-renewals";
       const res = await authFetch(`${API}/api/reminders/${path}`, { method: "POST" });
@@ -54,6 +65,31 @@ export function RemindersView() {
         return;
       }
       setResult(data);
+      await load();
+    } catch {
+      setError("Could not reach the server");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const approvedCount = items.filter((r) => r.status === "Approved").length;
+
+  async function sendNow() {
+    const where = emailMode === "live" ? "to the tenants" : "(test mode: to your own address)";
+    if (!window.confirm(`Send ${approvedCount} approved reminder(s) now ${where}?`)) return;
+    setBusy("send");
+    setError("");
+    setResult(null);
+    setSendResult(null);
+    try {
+      const res = await authFetch(`${API}/api/reminders/send`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not send");
+        return;
+      }
+      setSendResult(data);
       await load();
     } catch {
       setError("Could not reach the server");
@@ -87,12 +123,13 @@ export function RemindersView() {
   }
 
   const sorted = [...items].sort((a, b) => order[a.status] - order[b.status]);
+  const locked = (s: Status) => s === "Sending" || s === "Sent";
 
   return (
     <>
       <Header
         title="Reminders"
-        subtitle="Drafts written by the agents. Nothing is sent until you do it."
+        subtitle="Drafts written by the agents. You approve them, and approved ones are emailed from the 5th of each month."
         action={
           <div className="flex flex-wrap gap-2">
             <button className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`} onClick={() => run("rent")} disabled={!!busy}>
@@ -101,9 +138,22 @@ export function RemindersView() {
             <button className={`${btnGhost} flex items-center gap-2 disabled:opacity-50`} onClick={() => run("renewals")} disabled={!!busy}>
               <CalendarClock size={16} /> {busy === "renewals" ? "Checking..." : "Check expiring leases"}
             </button>
+            <button className={`${btnGhost} flex items-center gap-2 disabled:opacity-50`} onClick={sendNow} disabled={!!busy || approvedCount === 0}>
+              <Send size={16} /> {busy === "send" ? "Sending..." : `Send approved now (${approvedCount})`}
+            </button>
           </div>
         }
       />
+
+      <div
+        className={`mb-4 rounded-2xl border p-3 text-sm ${
+          emailMode === "live" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}
+      >
+        {emailMode === "live"
+          ? "Live mode: approved reminders are emailed to the tenants."
+          : "Test mode: emails go to your own address, not to tenants."}
+      </div>
 
       {error && <p className="mb-4 text-sm text-rose-600">{error}</p>}
 
@@ -119,6 +169,23 @@ export function RemindersView() {
               </p>
               <ul className="mt-2 space-y-1 font-mono text-xs text-indigo-800">
                 {result.trace.map((t, i) => <li key={i}>{i + 1}. {t}</li>)}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      {sendResult && (
+        <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
+          {sendResult.stopped === "nothing_to_do" ? (
+            <p>No approved reminders to send.</p>
+          ) : (
+            <>
+              <p className="font-medium">
+                {sendResult.sent} sent, {sendResult.skipped} skipped, {sendResult.needsReview} held for review, {sendResult.failed} failed ({sendResult.mode} mode).
+              </p>
+              <ul className="mt-2 space-y-1 font-mono text-xs text-emerald-800">
+                {sendResult.trace.map((t, i) => <li key={i}>{i + 1}. {t}</li>)}
               </ul>
             </>
           )}
@@ -150,19 +217,24 @@ export function RemindersView() {
                 </div>
               </div>
               <p className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{r.message}</p>
-              {r.status === "NeedsReview" && (
-                <p className="mt-2 text-xs text-rose-600">Needs a human: {r.note}</p>
+              {(r.status === "NeedsReview" || r.status === "Failed") && (
+                <p className="mt-2 text-xs text-rose-600">{r.note}</p>
+              )}
+              {r.status === "Sent" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Sent {r.sentAt ? new Date(r.sentAt).toLocaleString() : ""} to {r.sentTo}. {r.note}
+                </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button className={`${btnGhost} flex items-center gap-2`} onClick={() => copy(r)}>
                   <Copy size={14} /> {copied === r.id ? "Copied" : "Copy"}
                 </button>
-                {r.status !== "Approved" && (
+                {r.status !== "Approved" && !locked(r.status) && (
                   <button className={`${btnGhost} flex items-center gap-2`} onClick={() => setStatus(r.id, "Approved")}>
                     <Check size={14} /> Approve
                   </button>
                 )}
-                {r.status !== "Dismissed" && (
+                {r.status !== "Dismissed" && !locked(r.status) && (
                   <button className={`${btnGhost} flex items-center gap-2`} onClick={() => setStatus(r.id, "Dismissed")}>
                     <X size={14} /> Dismiss
                   </button>

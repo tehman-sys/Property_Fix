@@ -2,6 +2,8 @@ const express = require("express");
 const User = require("./models/User");
 const { runReminderAgent } = require("./agent");
 const { runRenewalWatcher } = require("./renewals");
+const { sendApprovedReminders } = require("./sender");
+const emailBrief = (r) => ({ sent: r.sent, failed: r.failed, needsReview: r.needsReview, stopped: r.stopped });
 
 const router = express.Router();
 
@@ -42,11 +44,17 @@ router.get("/daily", async (req, res) => {
             entry.renewalsError = err.message;
         }
 
+        try {
+            entry.email = emailBrief(await sendApprovedReminders({ ownerId, landlordEmail: u.email }));
+        } catch (err) {
+            entry.emailError = err.message;
+        }
+
         console.log(JSON.stringify({ cron: "daily", users: users.length, ms: Date.now() - started }));
         res.json({ ok: true, summary });
     } catch (err) {
         console.error("Cron error:", err.message);
-        res.status(500).json({ error: "Cron run failed" });
+           res.status(500).json({ error: "Cron run failed", detail: err.message });
     }
 });
 

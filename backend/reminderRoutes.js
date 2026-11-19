@@ -4,13 +4,15 @@ const User = require("./models/User");
 const { runReminderAgent } = require("./agent");
 const { friendly } = require("./ai");
 const { runRenewalWatcher } = require("./renewals");
+const { sendApprovedReminders } = require("./sender");
+const { isLive } = require("./mailer");
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
     const reminders = await Reminder.find({ ownerId: req.userId }).sort({ _id: -1 }).limit(100);
-    res.json({ reminders });
+     res.json({ reminders, emailMode: isLive() ? "live" : "test" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -25,6 +27,17 @@ router.post("/run", async (req, res) => {
     console.error("Agent error:", err.message);
     const e = friendly(err);
     res.status(e.status).json({ error: e.message });
+  }
+});
+
+router.post("/send", async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    const result = await sendApprovedReminders({ ownerId: req.userId, landlordEmail: user?.email, force: true });
+    res.json(result);
+  } catch (err) {
+    console.error("Send error:", err.message);
+    res.status(500).json({ error: "Could not send reminders" });
   }
 });
 
@@ -46,12 +59,12 @@ router.patch("/:id", async (req, res) => {
     if (!["Draft", "Approved", "Dismissed"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
-    const reminder = await Reminder.findOneAndUpdate(
-      { _id: req.params.id, ownerId: req.userId },
+       const reminder = await Reminder.findOneAndUpdate(
+      { _id: req.params.id, ownerId: req.userId, status: { $nin: ["Sent", "Sending"] } },
       { status },
       { new: true }
     );
-    if (!reminder) return res.status(404).json({ error: "Reminder not found" });
+    if (!reminder) return res.status(404).json({ error: "Reminder not found or already sent" });
     res.json(reminder);
   } catch {
     res.status(400).json({ error: "Invalid id" });
