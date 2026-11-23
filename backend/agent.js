@@ -195,6 +195,7 @@ async function runReminderAgent({ ownerId, landlordName }) {
   ];
 
   let steps = 0;
+    let tokens = 0;
   let stopped = "finished";
   while (steps < MAX_STEPS) {
     steps++;
@@ -205,6 +206,7 @@ async function runReminderAgent({ ownerId, landlordName }) {
       max_completion_tokens: 2000,
       ...(MODEL.startsWith("gpt-5") ? { reasoning_effort: "minimal" } : {}),
     });
+    tokens += res.usage?.total_tokens || 0;
     const msg = res.choices[0].message;
     messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
     if (!msg.tool_calls || msg.tool_calls.length === 0) break; // the model says it is done
@@ -222,7 +224,7 @@ async function runReminderAgent({ ownerId, landlordName }) {
 
   console.log(JSON.stringify({
     agent: "rent_reminders", user: ownerId, ms: Date.now() - started,
-    steps, drafts: state.drafts, review: state.review, remaining, stopped,
+    steps, tokens, drafts: state.drafts, review: state.review, remaining, stopped,
   }));
 
   return { drafts: state.drafts, needsReview: state.review, steps, remaining, stopped, trace: state.trace };
